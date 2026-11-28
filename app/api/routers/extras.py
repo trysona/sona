@@ -210,9 +210,12 @@ async def mood(tz: str | None = Query(None), lat: float | None = Query(None, ge=
 async def recognize_song(request: Request, deps: ApiDeps = Depends(limits.heavy("recognize", 20))) -> dict:
     """« Reconnaître un titre » : l'enregistrement (corps brut : WAV, M4A,
     WebM…) est identifié, puis retrouvé dans le catalogue de Sona."""
-    audio = await request.body()
-    if len(audio) > recognize.MAX_BYTES:
-        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Enregistrement trop long.")
+    audio = bytearray()
+    async for chunk in request.stream():  # coupé dès que c'est trop : jamais un envoi énorme en mémoire
+        audio += chunk
+        if len(audio) > recognize.MAX_BYTES:
+            raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Enregistrement trop long.")
+    audio = bytes(audio)
     if len(audio) < 2000:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Enregistrement vide.")
     try:

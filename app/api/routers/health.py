@@ -132,11 +132,11 @@ async def run_selftest(deps: ApiDeps = Depends(require_admin)) -> dict:
 async def update_ytdlp(deps: ApiDeps = Depends(require_admin)) -> dict:
     """Mise à jour de yt-dlp tout de suite (sinon chaque nuit). Tourne à
     part : elle redémarre Sona si une nouvelle version arrive."""
-    log = open(BASE_DIR / "data" / "ytdlp_update.log", "a")
-    subprocess.Popen(
-        [sys.executable, "-m", "app.services.ytdlp_updater"],
-        cwd=BASE_DIR, stdout=log, stderr=log, start_new_session=True,
-    )
+    with open(BASE_DIR / "data" / "ytdlp_update.log", "a") as log:  # le processus garde sa propre copie
+        subprocess.Popen(
+            [sys.executable, "-m", "app.services.ytdlp_updater"],
+            cwd=BASE_DIR, stdout=log, stderr=log, start_new_session=True,
+        )
     return {"started": True, "message": "Mise à jour lancée : Sona redémarre dans une minute si une nouvelle version arrive."}
 
 
