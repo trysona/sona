@@ -857,7 +857,7 @@ struct RemoteMiniPlayer: View {
                     Label("Sur \(device.name)", systemImage: connectDeviceSymbol(device.kind))
                         .font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.accentColor).lineLimit(1)
                 }
-                Spacer(minLength: 4)
+                .modifier(TrackSwipe(next: { connect.remote("next") }, previous: { connect.remote("previous") }))
                 Button {
                     connect.remote("toggle")
                 } label: {

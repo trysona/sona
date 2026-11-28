@@ -12,9 +12,13 @@ struct MiniPlayerView: View {
     @ObservedObject private var artistsCache = TrackArtistsCache.shared
 
     private var isInline: Bool { placement == .inline }
+    /// Retour au titre d'avant : le texte entre par la gauche au lieu de la droite.
+    @State private var backwards = false
 
     var body: some View {
         if let track = player.current {
+            // En « répéter tout » ou en radio, il y a toujours un suivant.
+            let ended = player.upNext.isEmpty && player.repeatMode != .all && !player.isStation
             HStack(spacing: 12) {
                 Artwork(url: track.coverURL, cornerRadius: isInline ? 5 : 7)
                     .frame(width: isInline ? 28 : 34, height: isInline ? 28 : 34)
@@ -35,10 +39,25 @@ struct MiniPlayerView: View {
                 }
                 .id(track.id)
                 .transition(.asymmetric(
-                    insertion: .move(edge: .trailing).combined(with: .opacity),
-                    removal: .move(edge: .leading).combined(with: .opacity)
+                    insertion: .move(edge: backwards ? .leading : .trailing).combined(with: .opacity),
+                    removal: .move(edge: backwards ? .trailing : .leading).combined(with: .opacity)
                 ))
-                Spacer(minLength: 4)
+                // Un tour de plus avant de changer de titre : le texte sortant connaît alors le sens.
+                .modifier(TrackSwipe(
+                    canNext: !ended,
+                    next: {
+                        backwards = false
+                        Task { player.next() }
+                    },
+                    previous: {
+                        backwards = true
+                        Task {
+                            player.previousTrack()
+                            try? await Task.sleep(for: .milliseconds(500))
+                            backwards = false
+                        }
+                    }
+                ))
                 Button {
                     player.togglePlayPause()
                 } label: {
@@ -58,8 +77,6 @@ struct MiniPlayerView: View {
                 .sensoryFeedback(.impact(weight: .light), trigger: player.isPlaying)
 
                 if !isInline {
-                // En « répéter tout » ou en radio, il y a toujours un suivant.
-                let ended = player.upNext.isEmpty && player.repeatMode != .all && !player.isStation
                 Button {
                     player.next()
                 } label: {
@@ -90,5 +107,45 @@ struct MiniPlayerView: View {
             .onTapGesture(perform: onExpand)
             .animation(Motion.snappy, value: track.id)
         }
+    }
+}
+
+/// Comme dans Musique : le titre du mini-lecteur suit le doigt ; glissé à gauche, il passe au suivant, à droite,
+/// il revient au précédent. Prend toute la place libre, pour que le geste soit facile.
+struct TrackSwipe: ViewModifier {
+    var canNext = true
+    var next: () -> Void
+    var previous: () -> Void
+    @State private var drag: CGFloat = 0
+    @State private var swipes = 0
+
+    func body(content: Content) -> some View {
+        content
+            .offset(x: drag)
+            .opacity(1 - Double(min(abs(drag) / 200, 0.6)))
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .clipped()
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 12)
+                    .onChanged { value in
+                        // Plus de suivant : le titre résiste.
+                        let x = value.translation.width
+                        drag = x < 0 && !canNext ? x / 4 : x
+                    }
+                    .onEnded { value in
+                        // Un geste long, ou court mais vif.
+                        let x = value.predictedEndTranslation.width
+                        if x < -90 && canNext {
+                            swipes += 1
+                            next()
+                        } else if x > 90 {
+                            swipes += 1
+                            previous()
+                        }
+                        withAnimation(Motion.snappy) { drag = 0 }
+                    }
+            )
+            .sensoryFeedback(.impact(weight: .light), trigger: swipes)
     }
 }

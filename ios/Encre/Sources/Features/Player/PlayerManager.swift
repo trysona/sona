@@ -1408,7 +1408,12 @@ final class PlayerManager: ObservableObject {
     /// Repart au début du morceau en cours, ou passe au précédent s'il vient
     /// de démarrer — même règle que le prototype (Encre.dc.html : `prev`).
     func previous() {
-        guard positionSeconds <= 3, let current, let index = context.firstIndex(where: { $0.id == current.id }), index > 0 else {
+        if positionSeconds > 3 { seek(toFraction: 0) } else { previousTrack() }
+    }
+
+    /// Le titre d'avant, même bien entamé (glissement du mini-lecteur) ; le début de celui-ci s'il n'y en a pas.
+    func previousTrack() {
+        guard let current, let index = context.firstIndex(where: { $0.id == current.id }), index > 0 else {
             seek(toFraction: 0)
             return
         }
