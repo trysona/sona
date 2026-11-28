@@ -58,16 +58,18 @@ struct MiniPlayerView: View {
                 .sensoryFeedback(.impact(weight: .light), trigger: player.isPlaying)
 
                 if !isInline {
+                // En « répéter tout » ou en radio, il y a toujours un suivant.
+                let ended = player.upNext.isEmpty && player.repeatMode != .all && !player.isStation
                 Button {
                     player.next()
                 } label: {
                     Image(systemName: "forward.fill")
                         .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(player.upNext.isEmpty ? Tone.tertiary : Tone.primary)
+                        .foregroundStyle(ended ? Tone.tertiary : Tone.primary)
                         .frame(width: 36, height: 40)
                 }
                 .buttonStyle(.pressable(scale: 0.85))
-                .disabled(player.upNext.isEmpty)
+                .disabled(ended)
                 }
             }
             .padding(.leading, 8)

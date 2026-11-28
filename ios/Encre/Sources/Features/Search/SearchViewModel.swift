@@ -238,7 +238,8 @@ final class SearchViewModel: ObservableObject {
     }
 
     private func remember(_ text: String) {
-        var list = recents.filter { $0.caseInsensitiveCompare(text) != .orderedSame }
+        // Les débuts de la même saisie (« dr », « dra ») partent avec elle.
+        var list = recents.filter { !text.lowercased().hasPrefix($0.lowercased()) }
         list.insert(text, at: 0)
         recents = Array(list.prefix(10))
         UserDefaults.standard.set(recents, forKey: Self.recentsKey)
@@ -262,6 +263,14 @@ enum LibraryMatches {
     private static var cachedAt = Date.distantPast
     private static var tracks: [Track] = []
     private static var playlists: [UserPlaylist] = []
+
+    /// Déconnexion : rien du compte quitté ne reste.
+    static func forget() {
+        cachedAt = .distantPast
+        tracks = []
+        playlists = []
+        UserDefaults.standard.removeObject(forKey: "sona.searches")
+    }
 
     private static func refresh() async {
         guard Date().timeIntervalSince(cachedAt) > 300 else { return }

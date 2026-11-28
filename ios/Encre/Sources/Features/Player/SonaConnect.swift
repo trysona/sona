@@ -436,6 +436,18 @@ final class ConnectManager: ObservableObject {
             default: break
             }
         }
+        // Position et volume choisis : gardés à l'écran, le curseur ne revient pas en arrière.
+        if action == "seek", let position {
+            if var session, session.deviceId == target.id {
+                session.position = position
+                self.session = session
+            }
+            if let i = devices.firstIndex(where: { $0.id == target.id }) { devices[i].position = position }
+            receivedAt = Date()
+        }
+        if action == "volume", let volume, let i = devices.firstIndex(where: { $0.id == target.id }) {
+            devices[i].volume = volume
+        }
         var action = action
         // « lecture » ou « pause » explicite (pas « bascule ») : plusieurs
         // appuis rapprochés ne s'annulent pas.
@@ -654,7 +666,10 @@ struct RemotePlayerView: View {
                             get: { volume ?? device.volume ?? 1 },
                             set: { volume = $0 }
                         ), in: 0...1) { editing in
-                            if !editing, let volume { connect.remote("volume", volume: volume) }
+                            if !editing, let chosen = volume {
+                                connect.remote("volume", volume: chosen)
+                                volume = nil  // ensuite, le volume réel de l'appareil
+                            }
                         }
                         .tint(.white)
                         Image(systemName: "speaker.wave.3.fill").font(.system(size: 12)).foregroundStyle(Tone.tertiary)

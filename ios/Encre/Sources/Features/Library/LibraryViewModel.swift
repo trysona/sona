@@ -20,7 +20,11 @@ enum LibraryKind: String, CaseIterable, Identifiable {
 @MainActor
 final class LibraryViewModel: ObservableObject {
     @Published var kind: LibraryKind = .playlists {
-        didSet { if kind != oldValue { Task { await load() } } }
+        didSet {
+            guard kind != oldValue else { return }
+            items = []  // sinon les titres s'affichaient un instant en grille d'albums
+            Task { await load() }
+        }
     }
     @Published private(set) var items: [LibraryItem] = []
     @Published private(set) var playlists: [UserPlaylist] = []

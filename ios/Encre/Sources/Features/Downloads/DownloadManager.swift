@@ -215,6 +215,12 @@ final class DownloadManager: ObservableObject {
             activeId = track.id
             do {
                 let item = try await fetch(track)
+                // Retiré pendant son téléchargement : le fichier repart.
+                guard queue.contains(where: { $0.id == track.id }) else {
+                    try? FileManager.default.removeItem(at: directory.appendingPathComponent(item.fileName))
+                    activeId = nil
+                    continue
+                }
                 items.insert(item, at: 0)
                 saveIndex()
                 // Karaoké hors ligne : les pistes séparées suivent le titre.

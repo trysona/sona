@@ -46,6 +46,12 @@ final class HomeViewModel: ObservableObject {
         FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("home.json")
     }
 
+    /// Déconnexion : l'accueil gardé n'est pas montré au compte suivant.
+    static func forget() {
+        try? FileManager.default.removeItem(at: snapshotURL)
+        MixStore.shared.mixes = []
+    }
+
     init() {
         guard let data = try? Data(contentsOf: Self.snapshotURL),
               let snapshot = try? JSONDecoder().decode(Snapshot.self, from: data) else { return }

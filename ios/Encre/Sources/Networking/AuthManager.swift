@@ -212,6 +212,8 @@ final class AuthManager: ObservableObject {
 
     func signOut() async {
         PlayerManager.shared.forgetAccount()
+        HomeViewModel.forget()
+        LibraryMatches.forget()
         if SupabaseAuth.shared.hasSession {
             await SupabaseAuth.shared.signOut()
         } else if !APIConfig.shared.sessionToken.isEmpty {
