@@ -62,7 +62,6 @@ object Hub {
     val devices = MutableStateFlow<List<ConnectDevice>>(emptyList())
     val activeDeviceId = MutableStateFlow<String?>(null)
     val session = MutableStateFlow<SessionOut?>(null)
-    val audioSessionId = MutableStateFlow(0)
     val message = MutableStateFlow<String?>(null)
 
     /** Thème choisi (Sona, Archive, GTA VI). */
@@ -142,10 +141,6 @@ object Hub {
                 kick.trySend(Unit)
             }
 
-            override fun onAudioSessionIdChanged(audioSessionId: Int) {
-                this@Hub.audioSessionId.value = audioSessionId
-            }
-
             override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
                 shuffle.value = shuffleModeEnabled
                 kick.trySend(Unit)
@@ -164,7 +159,6 @@ object Hub {
                 }
             }
         })
-        audioSessionId.value = p.audioSessionId
         player = p
         startTicker()
         return p

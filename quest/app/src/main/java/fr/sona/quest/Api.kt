@@ -99,7 +99,6 @@ class Api(private val settings: Settings) {
 
     // ── Accueil et bibliothèque ──────────────────────────────────────────────
 
-    suspend fun daily(): DailyOut = get("/home/daily")
     suspend fun mixes(): List<Mix> = get("/home/mixes")
     suspend fun history(limit: Int = 20): HistoryResponse = get("/history", mapOf("limit" to limit.toString()))
     suspend fun library(kind: String, limit: Int = 200): LibraryResponse =

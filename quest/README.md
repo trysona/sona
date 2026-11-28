@@ -17,8 +17,6 @@ le site comme n'importe quel autre appareil.
   changes de fenêtre ou lances un jeu. Réglage *Continuer pendant les jeux VR* (pas de focus audio).
 - **Sona Paroles** : une seconde icône, un petit panneau (pochette, paroles, contrôles) à poser
   où tu veux dans la pièce.
-- **Visualiseur** : barres et pulsation réagissant au son que Sona joue (analyse FFT de la sortie
-  de l'app, jamais le micro).
 
 ## Installer
 
