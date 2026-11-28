@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 
 import httpx
@@ -8,11 +7,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
-from app.api.auth import bearer_token, get_deps, identify, require_admin
+from app.api import limits
+from app.api.auth import bearer_token, get_deps, identify, is_owner, require_admin
 from app.api.state import ApiDeps
 from app.db.repository import Account
 from app.providers.lastfm_auth import APP_CALLBACK, AUTH_URL, LastfmAuthError
-from app.services import alerts, presence
+from app.services import presence
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["comptes"])
@@ -28,11 +28,17 @@ class AccountOut(BaseModel):
     scrobble_to_lastfm: bool
     created_at: str | None
     share_listening: bool = True
+    # Compte Sona (pas un ancien compte Last.fm) : les apps ne l'annoncent pas comme « Last.fm · … ».
+    sona: bool = False
+    # Propriétaire : lui seul voit les outils de lecture. Rempli seulement pour sa propre fiche (`/auth/me`).
+    is_owner: bool = False
 
     @classmethod
     def from_account(cls, a: Account) -> "AccountOut":
+        internal = a.lastfm_username.startswith("sb:")  # `sb:<uuid>` : jamais montré
         return cls(
-            id=a.id, username=a.lastfm_username, display_name=a.display_name, avatar_url=a.avatar_url,
+            id=a.id, sona=internal or bool(a.supabase_uid),
+            username=(a.display_name or "Sona") if internal else a.lastfm_username, display_name=a.display_name, avatar_url=a.avatar_url,
             status=a.status, is_admin=a.is_admin, scrobble_to_lastfm=a.scrobble_to_lastfm, created_at=a.created_at,
             share_listening=a.share_listening,
         )
@@ -68,7 +74,7 @@ def _legacy_account(deps: ApiDeps) -> AccountOut:
     """L'ancien jeton unique (API_TOKEN) : administrateur sans compte Last.fm."""
     return AccountOut(
         id=None, username=deps.settings.lastfm_user or "admin", display_name="Administrateur", avatar_url=None,
-        status="approved", is_admin=True, scrobble_to_lastfm=False, created_at=None,
+        status="approved", is_admin=True, scrobble_to_lastfm=False, created_at=None, is_owner=True,
     )
 
 
@@ -128,11 +134,12 @@ async def login_with_lastfm(payload: LastfmLoginIn, deps: ApiDeps = Depends(get_
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, str(exc)) from exc
     profile = await deps.lastfm_auth.profile(session.username)
     is_admin = session.username.casefold() in deps.settings.admin_lastfm_users
-    account, created = await deps.repo.upsert_account(
+    account, _ = await deps.repo.upsert_account(
         session.username, profile.display_name, profile.avatar_url, session.key, is_admin, deps.settings.api_user_id,
     )
-    if created and account.status == "pending":
-        asyncio.create_task(_notify_admins(deps, account))
+    # Compte rattaché à un compte Sona : la connexion Last.fm ne l'ouvre plus (ni sanctions ni double facteur sinon).
+    if await deps.repo.uid_linked_to(account.id) is not None:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Ce compte est passé aux comptes Sona : connecte-toi avec ton compte Sona.")
     token = await deps.repo.create_session(account.id)
     return LoginOut(session_token=token, account=AccountOut.from_account(account))
 
@@ -150,6 +157,7 @@ async def link_legacy(payload: LinkLegacyIn, deps: ApiDeps = Depends(identify)) 
     (bibliothèque, playlists, historique). La preuve : l'ancienne session de l'appareil, sinon autoriser Last.fm avec le
     pseudo de l'ancien compte. Un ancien compte n'est rattaché qu'une fois, et seulement s'il était accepté. Sa liaison
     Last.fm suit : la clé passe au service des comptes."""
+    limits.no_guest(deps)  # un compte sans inscription se perd avec le navigateur : les données avec
     me = deps.account
     if me is None or not me.supabase_uid:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Connecte-toi avec ton compte Sona pour rattacher un ancien compte.")
@@ -186,7 +194,9 @@ async def link_legacy(payload: LinkLegacyIn, deps: ApiDeps = Depends(identify)) 
 async def me(deps: ApiDeps = Depends(identify)) -> AccountOut:
     """Accessible même en attente : l'app s'en sert pour savoir si l'accès a
     été accordé."""
-    return AccountOut.from_account(deps.account) if deps.account else _legacy_account(deps)
+    if deps.account is None:
+        return _legacy_account(deps)
+    return AccountOut.from_account(deps.account).model_copy(update={"is_owner": is_owner(deps)})
 
 
 @router.put("/auth/me", response_model=AccountOut)
@@ -199,7 +209,8 @@ async def update_me(payload: MeUpdate, deps: ApiDeps = Depends(identify)) -> Acc
         await deps.repo.set_account_sharing(deps.account.id, payload.share_listening)
         if not payload.share_listening:
             presence.clear(deps.user_id)
-    return AccountOut.from_account(await deps.repo.account_by_id(deps.account.id))
+    updated = AccountOut.from_account(await deps.repo.account_by_id(deps.account.id))
+    return updated.model_copy(update={"is_owner": is_owner(deps)})
 
 
 @router.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
@@ -235,9 +246,3 @@ async def decide(account_id: int, action: str, deps: ApiDeps = Depends(require_a
     else:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Action inconnue : {action}")
     return AccountOut.from_account(await deps.repo.account_by_id(account_id))
-
-
-async def _notify_admins(deps: ApiDeps, account: Account) -> None:
-    """Prévient les administrateurs qu'une demande d'accès attend."""
-    name = account.display_name or account.lastfm_username
-    await alerts.send(deps.settings, f"Nouvelle demande d'accès à Sona : {name} (Last.fm : {account.lastfm_username}). Réglages → Administration.")

@@ -290,7 +290,7 @@ async def live(
     today = await deps.repo.plays_between(deps.user_id, stats_service.to_utc_iso(start), None)
     recent = await deps.repo.plays_recent(deps.user_id, 8)
     playing = presence.get(deps.user_id)
-    account = deps.account
+    username, connected, enabled = await lastfm_link(deps)
     sync = _lastfm_sync.get(deps.user_id, LastfmSync())
     return LiveOut(
         now_playing={
@@ -302,9 +302,9 @@ async def live(
         today_minutes=sum(stats_service.seconds_of(p) for p in today) // 60,
         recent=[PlayOut(**{k: v for k, v in asdict(p).items() if k != "listened_seconds"}) for p in recent],
         lastfm=LastfmSyncOut(
-            connected=bool(account and account.lastfm_session_key),
-            enabled=bool(account and account.scrobble_to_lastfm and deps.lastfm_auth),
-            username=account.lastfm_username if account else None,
+            connected=connected,
+            enabled=enabled,
+            username=username if deps.account else None,
             **asdict(sync),
         ),
     )
@@ -352,30 +352,43 @@ async def get_recap(
     return recap
 
 
-def _lastfm_username(deps: ApiDeps) -> str | None:
-    """Historique importé : celui du compte Last.fm connecté, sinon (ancien
-    jeton unique) celui de LASTFM_USER."""
-    return deps.account.lastfm_username if deps.account else deps.settings.lastfm_user
+async def lastfm_link(deps: ApiDeps) -> tuple[str | None, bool, bool]:
+    """(pseudo Last.fm, relié, scrobbling actif) du compte appelant. Compte Sona : la liaison est chez le service de
+    comptes ; son nom interne `sb:<uuid>` n'est pas un pseudo Last.fm. Ancien jeton unique : LASTFM_USER."""
+    account = deps.account
+    if account is None:
+        return deps.settings.lastfm_user, False, False
+    own = None if account.lastfm_username.startswith("sb:") else account.lastfm_username
+    if account.supabase_uid and deps.accounts is not None:
+        try:
+            link = await deps.accounts.lastfm_link(account.supabase_uid)
+        except Exception as exc:  # service injoignable : on ne bloque pas les statistiques
+            logger.info("Liaison Last.fm illisible : %s", exc)
+            link = {}
+        if link.get("username"):
+            return link["username"], True, bool(link.get("scrobbling", True))
+        return own, False, False
+    return own, bool(account.lastfm_session_key), bool(account.scrobble_to_lastfm and deps.lastfm_auth)
 
 
-def _status_out(deps: ApiDeps) -> ImportStatusOut:
+async def _status_out(deps: ApiDeps) -> ImportStatusOut:
     current = _import_statuses.get(deps.user_id) or ImportStatus()
-    return ImportStatusOut(
-        configured=bool(deps.settings.lastfm_api_key and _lastfm_username(deps)),
-        **asdict(current),
-    )
+    username, _, _ = await lastfm_link(deps)
+    return ImportStatusOut(configured=bool(deps.settings.lastfm_api_key and username), **asdict(current))
 
 
 @router.get("/stats/import/lastfm", response_model=ImportStatusOut)
 async def lastfm_import_status(deps: ApiDeps = Depends(require_token)) -> ImportStatusOut:
-    return _status_out(deps)
+    return await _status_out(deps)
 
 
 @router.post("/stats/import/lastfm", response_model=ImportStatusOut, status_code=status.HTTP_202_ACCEPTED)
 async def start_lastfm_import(deps: ApiDeps = Depends(require_token)) -> ImportStatusOut:
     """Lance (en tâche de fond) l'import de l'historique Last.fm du compte :
     tout la première fois, puis seulement les nouveautés."""
-    username = _lastfm_username(deps)
+    username, _, _ = await lastfm_link(deps)
+    if deps.settings.lastfm_api_key and not username:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Connecte d'abord Last.fm (Réglages › Services connectés).")
     if not (deps.settings.lastfm_api_key and username):
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -396,4 +409,4 @@ async def start_lastfm_import(deps: ApiDeps = Depends(require_token)) -> ImportS
         task = asyncio.create_task(run())
         _import_tasks.add(task)
         task.add_done_callback(_import_tasks.discard)
-    return _status_out(deps)
+    return await _status_out(deps)

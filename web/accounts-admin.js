@@ -15,6 +15,19 @@ const SonaAdmin = (() => {
   const TABS = [["dashboard", "Tableau de bord"], ["users", "Utilisateurs"], ["reports", "Signalements"], ["appeals", "Contestations"], ["content", "Contenu"], ["rules", "Règles"], ["audit", "Journal"]];
   const STATUS_LABEL = { active: "Actif", quarantined: "Quarantaine", suspended: "Suspendu", banned: "Banni" };
   const ROLE_LABEL = { user: "Utilisateur", moderator: "Modérateur", admin: "Admin" };
+  const KIND_LABEL = { warning: "Avertissement", suspension: "Suspension", ban: "Bannissement", quarantine: "Quarantaine" };
+  const PROVIDER_LABEL = { email: "E-mail", google: "Google", discord: "Discord", github: "GitHub" };
+  const providers = (l) => (l || []).map((p) => h(PROVIDER_LABEL[p] || p)).join(", ") || "—";
+  const ALERT_LABEL = { new_report: "Nouveau signalement", new_appeal: "Nouvelle contestation", auto_quarantine: "Quarantaine automatique", signup_spike: "Pic d'inscriptions", signup_burst: "Inscriptions en rafale" };
+  const REPORT_STATUS = { open: "Ouvert", in_progress: "En cours", resolved: "Résolu", dismissed: "Rejeté" };
+  const AUDIT_LABEL = {
+    "sanction.warning": "Avertissement", "sanction.suspension": "Suspension", "sanction.ban": "Bannissement", "sanction.quarantine": "Quarantaine",
+    "sanction.auto_quarantine": "Quarantaine automatique", "sanction.lift": "Sanction levée", "profile.reset": "Profil réinitialisé", "role.set": "Rôle modifié",
+    "account.delete": "Compte supprimé", "account.delete_self": "Compte supprimé par la personne", "identifier.ban": "Identifiant bloqué", "forbidden_term.add": "Mot interdit ajouté",
+    "report.open": "Signalement rouvert ou annoté", "report.in_progress": "Signalement pris en charge", "report.resolved": "Signalement résolu", "report.dismissed": "Signalement rejeté",
+    "appeal.accept": "Contestation acceptée", "appeal.reject": "Contestation refusée", "sessions.revoke": "Appareils déconnectés",
+    "content.hide": "Playlist masquée", "content.delete": "Playlist supprimée", "session.close": "Session fermée", "session.kick": "Expulsion d'une session", "session.delete_message": "Message supprimé",
+  };
   const isAdmin = () => !!account?.is_admin;
   const list = { search: "", role: "", status: "", provider: "", offset: 0 };
 
@@ -32,15 +45,18 @@ const SonaAdmin = (() => {
   async function dashboard() {
     const [d, alerts] = await Promise.all([social.rpc("admin_dashboard"), social.table("admin_alerts").select("*").order("created_at", { ascending: false }).limit(8).then((r) => r.data || [])]);
     const days = d.signups_per_day || [];
-    const tile = (n, label, href = "", warn = false) => `<a class="tile stat ${warn && n ? "warn" : ""}" ${href ? `href="${href}"` : ""}><b>${n}</b><span>${h(label)}</span></a>`;
+    const tile = (n, label, href = "", warn = false, status = "") => `<a class="tile stat ${warn && n ? "warn" : ""}" ${href ? `href="${href}"` : ""} ${status ? `data-stat="${status}"` : ""}><b>${n}</b><span>${h(label)}</span></a>`;
+    setTimeout(() => $$("[data-stat]").forEach((a) => a.addEventListener("click", () => Object.assign(list, { search: "", role: "", provider: "", status: a.dataset.stat, offset: 0 }))));
+    const about = (p = {}) => [REASON_LABEL[p.reason], TYPE_LABEL[p.target_type], p.reports && `${p.reports} signalements`, p.ip, p.signups_last_hour && `${p.signups_last_hour} en une heure`].filter(Boolean).join(" · ");
+    const alertHref = { new_report: "#/admin/reports", auto_quarantine: "#/admin/reports", new_appeal: "#/admin/appeals" };
     return `<div class="stat-grid">
         ${tile(d.total_users, "Comptes")}${tile(d.active_24h, "Actifs (24 h)")}${tile(d.active_7d, "Actifs (7 j)")}
         ${tile(d.open_reports, "Signalements en attente", "#/admin/reports", true)}${tile(d.open_appeals, "Contestations", "#/admin/appeals", true)}
-        ${tile(d.banned, "Bannis")}${tile(d.suspended, "Suspendus")}${tile(d.quarantined, "En quarantaine", "#/admin/users", true)}</div>
+        ${tile(d.banned, "Bannis", "#/admin/users", false, "banned")}${tile(d.suspended, "Suspendus", "#/admin/users", false, "suspended")}${tile(d.quarantined, "En quarantaine", "#/admin/users", true, "quarantined")}</div>
       <section class="section"><div class="section-head"><h2>Nouveaux inscrits (14 jours)</h2></div>
         ${barChart(days.map((x) => x.count), days.map((x) => x.day.slice(8)), { highlight: days.length - 1 })}</section>
       <section class="section"><div class="section-head"><h2>Dernières alertes</h2></div><div class="set-group">
-        ${alerts.length ? alerts.map((a) => `<div class="set-row"><span class="set-text"><b>${h({ new_report: "Nouveau signalement", new_appeal: "Nouvelle contestation", auto_quarantine: "Quarantaine automatique", signup_spike: "Pic d'inscriptions", signup_burst: "Inscriptions en rafale" }[a.kind] || a.kind)}</b><small>${date(a.created_at)}</small></span></div>`).join("") : `<p class="set-row muted">Aucune alerte.</p>`}</div></section>`;
+        ${alerts.length ? alerts.map((a) => `<a class="set-row" ${alertHref[a.kind] ? `href="${alertHref[a.kind]}"` : ""}><span class="set-text"><b>${h(ALERT_LABEL[a.kind] || a.kind)}</b><small>${h([about(a.payload), date(a.created_at)].filter(Boolean).join(" · "))}</small></span>${alertHref[a.kind] ? icons.right : ""}</a>`).join("") : `<p class="set-row muted">Aucune alerte.</p>`}</div></section>`;
   }
 
   // ── Utilisateurs ─────────────────────────────────────────────────────────
@@ -50,14 +66,14 @@ const SonaAdmin = (() => {
     const total = rows[0]?.total ?? 0;
     setTimeout(() => bindUsers(total));
     const opt = (cur, items) => items.map(([v, l]) => `<option value="${v}" ${cur === v ? "selected" : ""}>${h(l)}</option>`).join("");
-    return `<form class="admin-filters" id="user-filters"><input class="field" name="q" value="${h(list.search)}" placeholder="Pseudo, e-mail ou identifiant" aria-label="Rechercher un utilisateur" enterkeyhint="search">
+    return `<form class="admin-filters" id="user-filters"><input class="field" name="q" value="${h(list.search)}" placeholder="Pseudo, e-mail ou ID" aria-label="Rechercher un utilisateur" enterkeyhint="search">
         <select class="field small" name="role" aria-label="Rôle">${opt(list.role, [["", "Tous les rôles"], ["user", "Utilisateurs"], ["moderator", "Modérateurs"], ["admin", "Admins"]])}</select>
         <select class="field small" name="status" aria-label="Statut">${opt(list.status, [["", "Tous les statuts"], ["active", "Actifs"], ["quarantined", "Quarantaine"], ["suspended", "Suspendus"], ["banned", "Bannis"]])}</select>
         <select class="field small" name="provider" aria-label="Méthode de connexion">${opt(list.provider, [["", "Toutes méthodes"], ["email", "E-mail"], ["google", "Google"], ["discord", "Discord"], ["github", "GitHub"]])}</select>
         <button class="btn">Chercher</button></form>
       <p class="muted">${total} compte${total > 1 ? "s" : ""}</p>
       <div class="set-group">${rows.map((u) => `<a class="set-row user-row" data-user="${u.id}">${avatar(u.avatar_url, u.username)}<span class="set-text"><b>${h(u.username)} <span class="badge ${u.status}">${STATUS_LABEL[u.status]}</span>${u.role !== "user" ? ` <span class="badge role">${ROLE_LABEL[u.role]}</span>` : ""}</b>
-        <small>${h(u.email || "—")} · inscrit le ${date(u.created_at)} · ${u.providers.length ? u.providers.join(", ") : "—"}</small></span>${icons.right}</a>`).join("") || `<p class="set-row muted">Aucun résultat.</p>`}</div>
+        <small>${h(u.email || "—")} · inscrit le ${date(u.created_at)} · ${providers(u.providers)}</small></span>${icons.right}</a>`).join("") || `<p class="set-row muted">Aucun résultat.</p>`}</div>
       <div class="pill-row center">${list.offset > 0 ? `<button class="btn ghost" data-page="-1">Précédent</button>` : ""}${list.offset + 20 < total ? `<button class="btn ghost" data-page="1">Suivant</button>` : ""}</div>`;
   }
 
@@ -73,13 +89,14 @@ const SonaAdmin = (() => {
   }
 
   /** Demande un motif (obligatoire) avant toute action sensible. */
-  function reasonSheet({ title, text = "", confirm = "Confirmer", danger = false, extra = "" }) {
+  function reasonSheet({ title, text = "", confirm = "Confirmer", danger = false, extra = "", onOpen }) {
     return new Promise((resolve) => {
       let done = false;
       const wrap = openSheet(`<h2 class="sheet-title">${h(title)}</h2>${text ? `<p class="muted">${h(text)}</p>` : ""}
         <form class="ask">${extra}<textarea class="field area" name="reason" rows="3" maxlength="1000" placeholder="Motif (obligatoire, visible dans le journal)" aria-label="Motif" required></textarea>
         <div class="pill-row"><button type="button" class="btn ghost" data-cancel>Annuler</button><button class="btn ${danger ? "danger" : ""}" type="submit">${h(confirm)}</button></div></form>`,
         { onClose: () => { if (!done) { done = true; resolve(null); } } });
+      onOpen?.(wrap);
       $("[data-cancel]", wrap).onclick = () => wrap.close();
       $("form", wrap).onsubmit = (e) => {
         e.preventDefault();
@@ -100,10 +117,24 @@ const SonaAdmin = (() => {
     toast(ok);
   }
 
+  /** Demande le motif puis agit ; `false` si l'on renonce (la fiche reste alors ouverte). */
+  async function asked(options, run) {
+    const a = await reasonSheet(options);
+    if (!a) return false;
+    await run(a);
+  }
+
   async function sanction(target, kind, report) {
     const labels = { warning: "Avertir", suspension: "Suspendre", ban: "Bannir définitivement", quarantine: "Mettre en quarantaine" };
-    const extra = kind === "suspension" ? `<select class="field" name="duration" aria-label="Durée">${DURATIONS.map(([v, l]) => `<option value="${v}">${l}</option>`).join("")}</select><input class="field" name="hours" type="number" min="1" max="8760" placeholder="Heures (durée personnalisée)" hidden>` : "";
-    const answer = await reasonSheet({ title: labels[kind], text: { warning: "Le message sera affiché dans l'app de la personne.", suspension: "La personne est déconnectée immédiatement.", ban: "Définitif : son e-mail et ses identifiants OAuth sont retenus pour empêcher de recréer un compte.", quarantine: "Invisible des autres en attendant ta décision." }[kind], confirm: labels[kind], danger: kind === "ban", extra });
+    // Un modérateur ne suspend pas plus de 7 jours (la base le refuse).
+    const durations = DURATIONS.filter(([v]) => isAdmin() || v === "custom" || +v <= 604800);
+    const extra = kind === "suspension" ? `<select class="field" name="duration" aria-label="Durée">${durations.map(([v, l]) => `<option value="${v}">${l}</option>`).join("")}</select><input class="field" name="hours" type="number" min="1" max="${isAdmin() ? 8760 : 168}" placeholder="Heures (durée personnalisée)" hidden>` : "";
+    // « Durée personnalisée » : le champ des heures n'apparaît qu'à ce choix.
+    const onOpen = (wrap) => {
+      const select = $("select[name=duration]", wrap);
+      if (select) select.onchange = () => { const hours = $("input[name=hours]", wrap); hours.hidden = select.value !== "custom"; if (!hours.hidden) hours.focus(); };
+    };
+    const answer = await reasonSheet({ title: labels[kind], text: { warning: "Le message sera affiché dans l'app de la personne.", suspension: "La personne est déconnectée immédiatement.", ban: "Définitif : son e-mail et ses identifiants OAuth sont retenus pour empêcher de recréer un compte.", quarantine: "Invisible des autres en attendant ta décision." }[kind], confirm: labels[kind], danger: kind === "ban", extra, onOpen });
     if (!answer) return false;
     let seconds;
     if (kind === "suspension") {
@@ -125,49 +156,49 @@ const SonaAdmin = (() => {
       { label: "Suspendre…", run: () => sanction(id, "suspension") },
       isAdmin() && { label: "Bannir définitivement", danger: true, run: () => sanction(id, "ban") },
       { label: "Mettre en quarantaine", run: () => sanction(id, "quarantine") },
-      live && { label: "Lever la sanction en cours", run: async () => { const a = await reasonSheet({ title: "Lever la sanction", confirm: "Lever" }); if (a) await act("/admin/lift", { target: id, reason: a.reason }); } },
+      live && (isAdmin() || p.status !== "banned") && { label: "Lever la sanction en cours", run: () => asked({ title: "Lever la sanction", confirm: "Lever" }, (a) => act("/admin/lift", { target: id, reason: a.reason })) },
       { label: "Forcer le changement de pseudo", run: () => reset(id, ["username"], true, "Le pseudo est remplacé ; la personne doit en choisir un nouveau.") },
       { label: "Forcer le changement de photo", run: () => reset(id, ["avatar"], true, "La photo est retirée ; la personne doit en choisir une autre.") },
       { label: "Réinitialiser pseudo, photo et bio", run: () => reset(id, ["username", "avatar", "bio"], false, "Remplace le pseudo, efface la photo et la bio.") },
-      { label: "Déconnecter de tous les appareils", run: async () => { const a = await reasonSheet({ title: "Déconnecter de tous les appareils", confirm: "Déconnecter" }); if (a) await act("/admin/revoke-sessions", { target: id, reason: a.reason }); } },
+      { label: "Déconnecter de tous les appareils", run: () => asked({ title: "Déconnecter de tous les appareils", confirm: "Déconnecter" }, (a) => act("/admin/revoke-sessions", { target: id, reason: a.reason })) },
       isAdmin() && p.role !== "admin" && { label: "Changer le rôle…", run: () => roleSheet(id, p.role) },
-      isAdmin() && p.role !== "admin" && { label: "Supprimer le compte et ses données", danger: true, run: async () => { const a = await reasonSheet({ title: "Supprimer le compte", text: "Irréversible : profil, amitiés, bibliothèque, playlists et historique sont effacés.", confirm: "Supprimer", danger: true }); if (a) await act("/admin/delete-user", { target: id, reason: a.reason }, "Compte supprimé"); } },
+      isAdmin() && p.role !== "admin" && { label: "Supprimer le compte et ses données", danger: true, run: () => asked({ title: "Supprimer le compte", text: "Irréversible : profil, amitiés, bibliothèque, playlists et historique sont effacés.", confirm: "Supprimer", danger: true }, (a) => act("/admin/delete-user", { target: id, reason: a.reason }, "Compte supprimé")) },
     ].filter(Boolean);
-    const wrap = openSheet(`<div class="user-head">${avatar(p.avatar_url, p.username, "profile-avatar small")}<div><h2 class="sheet-title">${h(p.username)}</h2><small class="muted">${h(d.email || "—")}</small></div></div>
+    const wrap = openSheet(`<div class="user-head">${avatar(p.avatar_url, p.username, "profile-avatar small")}<div class="user-who"><h2 class="sheet-title">${h(p.username)}</h2><small class="muted">${h(d.email || "—")}</small></div></div>
       <dl class="facts"><div><dt>Statut</dt><dd><span class="badge ${p.status}">${STATUS_LABEL[p.status]}</span>${p.status_reason ? ` — ${h(p.status_reason)}` : ""}${p.status_until ? ` jusqu'au ${date(p.status_until)}` : ""}</dd></div>
-        <div><dt>Rôle</dt><dd>${ROLE_LABEL[p.role]}</dd></div><div><dt>Connexion</dt><dd>${d.providers.map(h).join(", ") || "—"}</dd></div>
+        <div><dt>Rôle</dt><dd>${ROLE_LABEL[p.role]}</dd></div><div><dt>Connexion</dt><dd>${providers(d.providers)}</dd></div>
         <div><dt>Inscrit</dt><dd>${date(p.created_at)} · vu ${date(p.last_seen_at)}</dd></div>
         <div><dt>Activité</dt><dd>${d.friends} ami(s) · ${d.reports_received} signalement(s) reçu(s) · ${d.reports_made} fait(s)</dd></div></dl>
       <h3 class="set-head">Historique des sanctions</h3>
-      <div class="set-group">${d.sanctions.length ? d.sanctions.map((s) => `<div class="set-row"><span class="set-text"><b>${{ warning: "Avertissement", suspension: "Suspension", ban: "Bannissement", quarantine: "Quarantaine" }[s.kind]}${s.revoked_at ? " (levée)" : ""}</b><small>${date(s.created_at)} — ${h(s.reason)}${s.created_by ? "" : " (automatique)"}</small></span></div>`).join("") : `<p class="set-row muted">Aucune.</p>`}</div>
+      <div class="set-group">${d.sanctions.length ? d.sanctions.map((s) => `<div class="set-row"><span class="set-text"><b>${KIND_LABEL[s.kind]}${s.revoked_at ? " (levée)" : ""}</b><small>${date(s.created_at)} — ${h(s.reason)}${s.created_by ? "" : " (automatique)"}</small></span></div>`).join("") : `<p class="set-row muted">Aucune.</p>`}</div>
       <h3 class="set-head">Actions</h3><div class="menu">${target ? items.map((it, i) => `<button class="menu-item ${it.danger ? "danger" : ""}" data-act="${i}"><span class="mi-text"><span class="mi-label">${h(it.label)}</span></span></button>`).join("") : `<p class="muted">Tu ne peux pas agir sur ce compte (rôle égal ou supérieur).</p>`}</div>`);
     $$("[data-act]", wrap).forEach((b) => (b.onclick = guard(async () => { const done = await items[+b.dataset.act].run(); if (done !== false) { wrap.close(); setTimeout(route, 200); } })));
   }
 
-  async function reset(id, fields, force, text) {
-    const a = await reasonSheet({ title: "Modifier le profil", text, confirm: "Appliquer" });
-    if (a) await act("/admin/reset-profile", { target: id, fields, force, reason: a.reason });
+  function reset(id, fields, force, text) {
+    return asked({ title: "Modifier le profil", text, confirm: "Appliquer" }, (a) => act("/admin/reset-profile", { target: id, fields, force, reason: a.reason }));
   }
 
-  async function roleSheet(id, current) {
-    const a = await reasonSheet({ title: "Changer le rôle", confirm: "Appliquer", extra: `<select class="field" name="role" aria-label="Rôle">${["user", "moderator", "admin"].map((r) => `<option value="${r}" ${r === current ? "selected" : ""}>${ROLE_LABEL[r]}</option>`).join("")}</select>` });
-    if (a) await act("/admin/role", { target: id, role: a.form.get("role"), reason: a.reason }, "Rôle modifié");
+  function roleSheet(id, current) {
+    return asked({ title: "Changer le rôle", confirm: "Appliquer", extra: `<select class="field" name="role" aria-label="Rôle">${["user", "moderator", "admin"].map((r) => `<option value="${r}" ${r === current ? "selected" : ""}>${ROLE_LABEL[r]}</option>`).join("")}</select>` },
+      (a) => act("/admin/role", { target: id, role: a.form.get("role"), reason: a.reason }, "Rôle modifié"));
   }
 
   // ── Signalements ─────────────────────────────────────────────────────────
 
-  const REPORT_FILTER = { status: "open" };
+  const REPORT_FILTER = { status: "todo" };
   const REASON_LABEL = { spam: "Spam", harassment: "Harcèlement", inappropriate: "Contenu inapproprié", impersonation: "Usurpation", other: "Autre" };
   const TYPE_LABEL = { profile: "Profil", playlist: "Playlist", username: "Pseudo", avatar: "Photo", session: "Session", message: "Message" };
 
   async function reports() {
     let q = social.table("reports").select("*, reporter:profiles!reports_reporter_id_fkey(username), target:profiles!reports_target_user_id_fkey(id,username,avatar_url,status), notes:report_notes(id)").order("created_at", { ascending: false }).limit(50);
-    if (REPORT_FILTER.status) q = q.eq("status", REPORT_FILTER.status);
+    if (REPORT_FILTER.status === "todo") q = q.in("status", ["open", "in_progress"]);
+    else if (REPORT_FILTER.status) q = q.eq("status", REPORT_FILTER.status);
     const { data, error } = await q;
     if (error) throw new Error(error.message);
     setTimeout(() => bindReports(data));
-    return `<div class="segmented small admin-seg">${[["open", "Ouverts"], ["in_progress", "En cours"], ["resolved", "Résolus"], ["dismissed", "Rejetés"], ["", "Tous"]].map(([v, l]) => `<button data-rfilter="${v}" class="${REPORT_FILTER.status === v ? "on" : ""}">${l}</button>`).join("")}</div>
-      <div class="set-group">${data.map((r) => `<a class="set-row user-row" data-report="${r.id}"><span class="set-text"><b>${TYPE_LABEL[r.target_type]} · ${REASON_LABEL[r.reason]} <span class="badge ${r.status}">${{ open: "Ouvert", in_progress: "En cours", resolved: "Résolu", dismissed: "Rejeté" }[r.status]}</span></b>
+    return `<div class="segmented small admin-seg">${[["todo", "À traiter"], ["in_progress", "En cours"], ["resolved", "Résolus"], ["dismissed", "Rejetés"], ["", "Tous"]].map(([v, l]) => `<button data-rfilter="${v}" class="${REPORT_FILTER.status === v ? "on" : ""}">${l}</button>`).join("")}</div>
+      <div class="set-group">${data.map((r) => `<a class="set-row user-row" data-report="${r.id}"><span class="set-text"><b>${TYPE_LABEL[r.target_type]} · ${REASON_LABEL[r.reason]} <span class="badge ${r.status}">${REPORT_STATUS[r.status]}</span></b>
         <small>${r.target ? `contre @${h(r.target.username)}` : "cible supprimée"} · par ${r.reporter ? `@${h(r.reporter.username)}` : "—"} · ${date(r.created_at)}${r.assigned_to ? " · assigné" : ""}</small></span>${icons.right}</a>`).join("") || `<p class="set-row muted">Aucun signalement.</p>`}</div>`;
   }
 
@@ -176,30 +207,45 @@ const SonaAdmin = (() => {
     $$("[data-report]").forEach((r) => (r.onclick = guard(async () => reportSheet(data.find((x) => x.id === r.dataset.report)))));
   }
 
+  const PROOF_LABEL = { username: "Pseudo", display_name: "Nom affiché", name: "Nom", bio: "Bio", text: "Message", by: "Auteur", session: "Session", title: "Titre", description: "Description", avatar_url: "Photo" };
+
+  /** La copie conservée au moment du signalement, en clair. Seules les vraies adresses https deviennent des images. */
+  function proof(snapshot) {
+    const rows = Object.entries(snapshot || {}).filter(([, v]) => v !== null && v !== "");
+    if (!rows.length) return "";
+    const value = (k, v) => (k === "avatar_url" && /^https:\/\//.test(String(v)) ? `<img class="proof-img" src="${h(String(v))}" alt="Photo signalée" referrerpolicy="no-referrer">` : h(typeof v === "object" ? JSON.stringify(v) : String(v)));
+    return `<h3 class="set-head">Contenu signalé</h3><dl class="facts proof">${rows.map(([k, v]) => `<div><dt>${h(PROOF_LABEL[k] || k)}</dt><dd>${value(k, v)}</dd></div>`).join("")}</dl>`;
+  }
+
   async function reportSheet(r) {
     const { data: notes } = await social.table("report_notes").select("note, created_at").eq("report_id", r.id).order("created_at");
-    const snap = r.snapshot && Object.keys(r.snapshot).length ? `<pre class="snap">${h(JSON.stringify(r.snapshot, null, 2))}</pre>` : "";
     const t = r.target;
+    const todo = r.status === "open" || r.status === "in_progress";
+    // Un message signalé porte « code:numéro » ; une session, son code.
+    const [code, messageId] = String(r.target_ref || "").split(":");
     const items = [
-      { label: "Prendre en charge", run: () => update(r.id, "in_progress", account.id) },
+      todo && r.assigned_to !== account.id && { label: "Prendre en charge", run: () => update(r.id, "in_progress", account.id) },
       t && r.target_type !== "playlist" && { label: "Avertir", run: () => sanction(t.id, "warning", r.id) },
       t && r.target_type !== "playlist" && { label: "Suspendre…", run: () => sanction(t.id, "suspension", r.id) },
       t && r.target_type !== "playlist" && isAdmin() && { label: "Bannir", danger: true, run: () => sanction(t.id, "ban", r.id) },
       t && r.target_type === "playlist" && r.target_ref && { label: "Masquer la playlist", run: () => contentAction("hide", t.id, r.target_ref) },
       t && r.target_type === "playlist" && r.target_ref && { label: "Supprimer la playlist", danger: true, run: () => contentAction("delete", t.id, r.target_ref) },
       t && ["username", "avatar"].includes(r.target_type) && { label: r.target_type === "username" ? "Forcer un nouveau pseudo" : "Forcer une nouvelle photo", run: () => reset(t.id, [r.target_type === "username" ? "username" : "avatar"], true, "") },
-      r.target_type === "session" && r.target_ref && { label: "Fermer la session", danger: true, run: () => sessionAction(r.target_ref, "close") },
-      { label: "Résoudre sans sanction", run: () => update(r.id, "resolved") },
-      { label: "Rejeter", run: () => update(r.id, "dismissed") },
+      r.target_type === "message" && messageId && { label: "Supprimer le message", danger: true, run: () => sessionAction(code, "delete_message", null, messageId) },
+      ["session", "message"].includes(r.target_type) && code && { label: "Fermer la session", danger: true, run: () => sessionAction(code, "close") },
+      todo && { label: "Résoudre sans sanction", run: () => update(r.id, "resolved") },
+      todo && { label: "Rejeter", run: () => update(r.id, "dismissed") },
+      !todo && { label: "Rouvrir", run: () => update(r.id, "open") },
       t && { label: "Voir le compte", run: () => userSheet(t.id) },
     ].filter(Boolean);
     const wrap = openSheet(`<h2 class="sheet-title">${TYPE_LABEL[r.target_type]} · ${REASON_LABEL[r.reason]}</h2>
+      <p><span class="badge ${r.status}">${REPORT_STATUS[r.status]}</span></p>
       <dl class="facts"><div><dt>Cible</dt><dd>${t ? `@${h(t.username)} (${STATUS_LABEL[t.status]})` : "supprimée"}${r.target_ref ? ` · réf. ${h(r.target_ref)}` : ""}</dd></div>
         <div><dt>Signalé par</dt><dd>${r.reporter ? `@${h(r.reporter.username)}` : "—"}</dd></div><div><dt>Date</dt><dd>${date(r.created_at)}</dd></div>
-        ${r.details ? `<div><dt>Précisions</dt><dd>${h(r.details)}</dd></div>` : ""}${r.resolution ? `<div><dt>Résolution</dt><dd>${h(r.resolution)}</dd></div>` : ""}</dl>${snap}
+        ${r.details ? `<div><dt>Précisions</dt><dd>${h(r.details)}</dd></div>` : ""}${r.resolution ? `<div><dt>Résolution</dt><dd>${h(r.resolution.replace(/^sanction:(\w+)$/, (_, k) => KIND_LABEL[k] || k))}</dd></div>` : ""}</dl>${proof(r.snapshot)}
       <h3 class="set-head">Notes internes</h3><div class="set-group">${(notes || []).map((n) => `<div class="set-row"><span class="set-text"><b>${h(n.note)}</b><small>${date(n.created_at)}</small></span></div>`).join("") || `<p class="set-row muted">Aucune note.</p>`}</div>
       <form class="ask" data-note><input class="field" name="n" placeholder="Ajouter une note interne" maxlength="2000"><button class="btn small">Ajouter</button></form>
-      <h3 class="set-head">Actions (le signalant est prévenu à la clôture)</h3><div class="menu">${items.map((it, i) => `<button class="menu-item ${it.danger ? "danger" : ""}" data-ra="${i}"><span class="mi-text"><span class="mi-label">${h(it.label)}</span></span></button>`).join("")}</div>`);
+      <h3 class="set-head">Actions</h3><p class="muted set-note">La personne qui a signalé est prévenue à la clôture.</p><div class="menu">${items.map((it, i) => `<button class="menu-item ${it.danger ? "danger" : ""}" data-ra="${i}"><span class="mi-text"><span class="mi-label">${h(it.label)}</span></span></button>`).join("")}</div>`);
     $("[data-note]", wrap).onsubmit = guard(async (e) => {
       e.preventDefault();
       const n = String(new FormData(e.target).get("n") || "").trim();
@@ -228,7 +274,7 @@ const SonaAdmin = (() => {
       const ans = await reasonSheet({ title: accept ? "Accepter la contestation" : "Refuser la contestation", text: accept ? "La sanction est levée." : "", confirm: accept ? "Accepter" : "Refuser" });
       if (ans) { await act("/admin/appeal", { appeal: a.id, accept, response: ans.reason }); route(); }
     }))));
-    return `<div class="set-group">${data.map((a) => `<div class="set-row appeal"><span class="set-text"><b>@${h(a.user?.username || "?")} — ${{ warning: "Avertissement", suspension: "Suspension", ban: "Bannissement", quarantine: "Quarantaine" }[a.sanction?.kind] || ""}</b>
+    return `<div class="set-group">${data.map((a) => `<div class="set-row appeal"><span class="set-text"><b>@${h(a.user?.username || "?")} — ${KIND_LABEL[a.sanction?.kind] || ""}</b>
         <small>Sanction : ${h(a.sanction?.reason || "")}</small><small class="quote">« ${h(a.message)} »</small></span>
         <span class="pill-row tight"><button class="btn small" data-appeal="${a.id}" data-accept="1">Accepter</button><button class="btn small ghost" data-appeal="${a.id}" data-accept="0">Refuser</button></span></div>`).join("") || `<p class="set-row muted">Aucune contestation en attente.</p>`}</div>`;
   }
@@ -241,10 +287,11 @@ const SonaAdmin = (() => {
     await act("/admin/content", { action, kind: "playlist", owner, ref: String(ref), reason: a.reason });
   }
 
-  async function sessionAction(code, action, user) {
-    const a = await reasonSheet({ title: action === "close" ? "Fermer la session" : "Expulser de la session", confirm: "Valider", danger: true });
-    if (!a) return false;
-    await act("/admin/session", { code, action, user: user || null, reason: a.reason });
+  function sessionAction(code, action, user, messageId) {
+    if (action === "kick" && !user) { toast("Indique l'identifiant à expulser."); return false; }
+    if (action === "delete_message" && !messageId) { toast("Indique le numéro du message."); return false; }
+    const title = { close: "Fermer la session", kick: "Expulser de la session", delete_message: "Supprimer le message" }[action];
+    return asked({ title, confirm: "Valider", danger: true }, (a) => act("/admin/session", { code, action, user: user || null, message_id: messageId ? String(messageId) : null, reason: a.reason }));
   }
 
   async function content() {
@@ -257,7 +304,7 @@ const SonaAdmin = (() => {
       $("#session-form")?.addEventListener("submit", guard(async (e) => {
         e.preventDefault();
         const f = new FormData(e.target);
-        await sessionAction(String(f.get("code")).trim().toUpperCase(), String(f.get("action")), String(f.get("user") || "").trim() || null);
+        await sessionAction(String(f.get("code")).trim().toUpperCase(), String(f.get("action")), String(f.get("user") || "").trim() || null, String(f.get("message") || "").trim());
       }));
     });
     return `<section class="section"><div class="section-head"><h2>Playlist publique</h2></div>
@@ -266,7 +313,7 @@ const SonaAdmin = (() => {
         <p class="muted">Un profil se masque en le mettant en quarantaine depuis la fiche de l'utilisateur.</p></section>
       <section class="section"><div class="section-head"><h2>Session d'écoute</h2></div>
         <form class="admin-filters" id="session-form"><input class="field" name="code" placeholder="Code de la session" required maxlength="16">
-        <input class="field" name="user" placeholder="Identifiant à expulser (facultatif)"><select class="field small" name="action"><option value="close">Fermer</option><option value="kick">Expulser</option><option value="delete_message">Supprimer un message</option></select><button class="btn">Appliquer</button></form></section>`;
+        <input class="field" name="user" placeholder="Identifiant à expulser"><input class="field small" name="message" inputmode="numeric" placeholder="N° du message"><select class="field small" name="action"><option value="close">Fermer</option><option value="kick">Expulser</option><option value="delete_message">Supprimer un message</option></select><button class="btn">Appliquer</button></form></section>`;
   }
 
   // ── Règles : mots interdits, identifiants bannis ─────────────────────────
@@ -290,7 +337,7 @@ const SonaAdmin = (() => {
         <p class="muted">Comparé sans accents, majuscules ni séparateurs, « leet speak » défait. Évite les termes courts qui se cachent dans des prénoms.</p></section>
       <section class="section"><div class="section-head"><h2>Empêcher une inscription</h2></div>
         <form class="admin-filters" id="ban-form"><select class="field small" name="kind"><option value="email">Adresse e-mail</option><option value="email_domain">Domaine d'e-mail</option><option value="ip">Adresse ou plage IP (ex. 192.0.2.0/24)</option></select>
-        <input class="field" name="value" placeholder="Valeur" required maxlength="200"><input class="field small" name="hours" type="number" min="0" placeholder="Heures (IP, vide = illimité)"><button class="btn">Bloquer</button></form>
+        <input class="field" name="value" placeholder="Valeur" required maxlength="200"><input class="field small" name="hours" type="number" min="0" placeholder="Heures (IP)" aria-label="Durée en heures pour une IP, vide : illimité"><button class="btn">Bloquer</button></form>
         <p class="muted">Un bannissement ajoute automatiquement l'e-mail et les identifiants OAuth du compte (hachés). Les domaines d'e-mails jetables courants sont déjà bloqués.</p></section>
       <section class="section"><div class="section-head"><h2>Durées de conservation</h2></div><div class="set-group">
         <div class="set-row"><span class="set-text"><b>Journal d'audit</b><small>12 mois, puis supprimé automatiquement</small></span></div>
@@ -303,7 +350,11 @@ const SonaAdmin = (() => {
   async function audit() {
     const { data, error } = await social.table("audit_log").select("*").order("at", { ascending: false }).limit(100);
     if (error) throw new Error(error.message);
-    return `<p class="muted">Non modifiable, non supprimable. Conservation : 12 mois.</p><div class="set-group">${data.map((a) => `<div class="set-row audit"><span class="set-text"><b>${h(a.action)}</b><small>${date(a.at)} · par ${a.actor_id ? h(a.actor_id.slice(0, 8)) : "système"} (${h(a.actor_role || "—")})${a.target_user_id ? ` · sur ${h(a.target_user_id.slice(0, 8))}` : ""}</small>${a.reason ? `<small class="quote">${h(a.reason)}</small>` : ""}</span></div>`).join("") || `<p class="set-row muted">Vide.</p>`}</div>`;
+    const ids = [...new Set(data.flatMap((a) => [a.actor_id, a.target_user_id]).filter(Boolean))];
+    const found = ids.length ? (await social.table("profiles").select("id,username").in("id", ids)).data || [] : [];
+    const names = new Map(found.map((p) => [p.id, p.username]));
+    const who = (id) => (names.has(id) ? `@${h(names.get(id))}` : h(id.slice(0, 8)));
+    return `<p class="muted">Non modifiable, non supprimable. Conservation : 12 mois.</p><div class="set-group">${data.map((a) => `<div class="set-row audit"><span class="set-text"><b>${h(AUDIT_LABEL[a.action] || a.action)}</b><small>${date(a.at)} · par ${a.actor_id ? who(a.actor_id) : "le système"}${a.actor_role ? ` (${h(ROLE_LABEL[a.actor_role] || a.actor_role)})` : ""}${a.target_user_id ? ` · sur ${who(a.target_user_id)}` : ""}</small>${a.reason ? `<small class="quote">${h(a.reason)}</small>` : ""}</span></div>`).join("") || `<p class="set-row muted">Vide.</p>`}</div>`;
   }
 
   return { view, sanction, userSheet };

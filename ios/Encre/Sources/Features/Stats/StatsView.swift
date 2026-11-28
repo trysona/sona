@@ -12,7 +12,6 @@ struct StatsView: View {
     @State private var chartsVisible = false
     @State private var openingTrackId: String?
     @State private var recap: RecapLaunch?
-    @State private var challenges: Challenges?
     @State private var showingMap = false
 
     var body: some View {
@@ -25,17 +24,6 @@ struct StatsView: View {
                 recapCard
                     .padding(.horizontal, 20)
                     .reveal(1)
-
-                if let friends = challenges?.friends, !friends.boards.isEmpty {
-                    FriendsBoardsSection(friends: friends)
-                        .padding(.horizontal, 20)
-                        .reveal(1)
-                }
-                if let challenges {
-                    ChallengesSection(challenges: challenges)
-                        .padding(.horizontal, 20)
-                        .reveal(1)
-                }
 
                 periodControls
 
@@ -93,7 +81,6 @@ struct StatsView: View {
             RecapView(period: launch.period, offset: launch.offset)
         }
         .task { await viewModel.load() }
-        .task { challenges = try? await APIClient.shared.challenges() }
         .fullScreenCover(isPresented: $showingMap) {
             ListeningMapView().environmentObject(player)
         }

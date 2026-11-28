@@ -26,6 +26,7 @@ const model = {
   status: { active: null, profiles: [], busy: false },
   devices: [],
   devicesError: null,
+  icloud: false,        // composants iCloud (.exe d'Apple) présents sur ce PC
   apps: [],
   latest: null,         // { version, url, size, notes, date }
   lastCheck: null,
@@ -82,13 +83,16 @@ function start() {
     }
   });
   helper.stderr.on("data", () => {});
-  helper.on("exit", () => {
+  // Programme parti (ou jamais lancé) : les demandes en cours sont refusées au lieu d'attendre sans fin.
+  const gone = () => {
     helper = null;
     for (const p of pending.values()) p.reject(new Error("Le module iPhone s'est arrêté. Réessaie."));
     pending.clear();
     update({ busy: null, progress: null, twoFactor: null });
-  });
-  helper.on("error", () => { helper = null; model.available = false; });
+  };
+  helper.stdin.on("error", () => {}); // écrire à un programme mort ne doit pas faire tomber Sona
+  helper.on("exit", gone);
+  helper.on("error", () => { model.available = false; gone(); });
   return helper;
 }
 
@@ -138,6 +142,9 @@ function compareVersions(a, b) {
 
 async function refresh({ devices = true } = {}) {
   if (!model.available) return;
+  // Même fichier que celui que cherche sona-iphone (local_anisette.rs).
+  const x86 = process.env["ProgramFiles(x86)"];
+  model.icloud = !!x86 && fs.existsSync(path.join(x86, "Common Files", "Apple", "Internet Services", "AOSKit.dll"));
   const jobs = [
     call("status").then((status) => (model.status = status)),
     call("apps").then((apps) => (model.apps = apps.filter((a) => a.id === APP_ID))),
@@ -233,6 +240,16 @@ const actions = {
     if (!latest) throw new Error("Aucune mise à jour trouvée.");
     await install(udid, { ipaUrl: latest.url });
     toast(`Sona ${latest.version} installée`, "L'iPhone est à jour.");
+  },
+  /** La dernière app iPhone dans Téléchargements, pour l'installer avec Sideloadly, AltServer ou SideStore. */
+  async saveIpa() {
+    const latest = model.latest || (await checkLatest());
+    if (!latest) throw new Error("Impossible de trouver la dernière version de Sona pour iPhone. Vérifie ta connexion Internet.");
+    const res = await net.fetch(latest.url);
+    if (!res.ok) throw new Error(`Téléchargement impossible (code ${res.status}).`);
+    const file = path.join(app.getPath("downloads"), `Sona-${String(latest.version).replace(/[^\w.-]/g, "")}.ipa`);
+    await fs.promises.writeFile(file, Buffer.from(await res.arrayBuffer()));
+    return file;
   },
   async forgetApp({ udid }) { await call("app_forget", { app: APP_ID, udid }); await refresh({ devices: false }); },
   setAuto({ auto }) { settings.set("iphoneAuto", !!auto); update({ auto: !!auto }); if (auto) autoPass().catch(() => {}); },

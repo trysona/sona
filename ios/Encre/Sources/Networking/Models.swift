@@ -784,18 +784,26 @@ struct AppAccount: Codable, Identifiable, Hashable {
     var scrobbleToLastfm: Bool
     var createdAt: String?
     var shareListening: Bool?
+    /// Compte Sona (et non un ancien compte Last.fm). Absent des anciens serveurs.
+    var sona: Bool?
+    /// Propriétaire de Sona. Absent des anciens serveurs : les administrateurs en tiennent lieu.
+    var isOwner: Bool?
+    var managesPlayback: Bool { isOwner ?? isAdmin }
 
     enum CodingKeys: String, CodingKey {
-        case id, username, status
+        case id, username, status, sona
         case displayName = "display_name"
         case avatarURL = "avatar_url"
         case isAdmin = "is_admin"
+        case isOwner = "is_owner"
         case scrobbleToLastfm = "scrobble_to_lastfm"
         case createdAt = "created_at"
         case shareListening = "share_listening"
     }
 
     var name: String { displayName ?? username }
+    /// Sous le nom, dans Réglages.
+    var kindLabel: String { sona == true ? "Compte Sona" : "Last.fm · \(username)" }
 }
 
 struct AuthConfig: Codable {
@@ -1249,7 +1257,7 @@ struct PartySummary: Codable, Hashable, Identifiable {
     var id: String { code }
 }
 
-// MARK: - Extras (sorties, souvenirs, moments, carte, défis)
+// MARK: - Extras (sorties, moments, carte)
 
 struct Release: Codable, Hashable, Identifiable {
     var source: String
@@ -1293,22 +1301,6 @@ extension ISO8601DateFormatter {
     }()
 }
 
-struct Memory: Codable, Hashable, Identifiable {
-    var yearsAgo: Int
-    var label: String
-    var dateLabel: String
-    var plays: Int
-    var tracks: [Track]
-
-    enum CodingKeys: String, CodingKey {
-        case label, plays, tracks
-        case yearsAgo = "years_ago"
-        case dateLabel = "date_label"
-    }
-
-    var id: Int { yearsAgo }
-}
-
 struct TrackMoment: Codable, Hashable, Identifiable {
     var id: Int
     var position: Double
@@ -1348,77 +1340,6 @@ struct ListeningPlace: Codable, Hashable, Identifiable {
     }
 
     var id: String { "\(lat),\(lon)" }
-}
-
-struct Challenges: Codable, Hashable {
-    struct Challenge: Codable, Hashable, Identifiable {
-        var id: String
-        var title: String
-        var icon: String
-        var value: Int
-        var goal: Int
-        var unit: String
-        var done: Bool
-    }
-
-    struct Badge: Codable, Hashable, Identifiable {
-        var id: String
-        var title: String
-        var description: String
-        var icon: String
-        var earned: Bool
-    }
-
-    /// Défis entre amis : classements de la semaine.
-    struct Friends: Codable, Hashable {
-        struct Entry: Codable, Hashable {
-            var name: String
-            var avatarURL: String?
-            var value: Int
-            var me: Bool
-            enum CodingKeys: String, CodingKey { case name, value, me; case avatarURL = "avatar_url" }
-        }
-        struct Board: Codable, Hashable, Identifiable {
-            var id: String
-            var title: String
-            var icon: String
-            var unit: String
-            var ranking: [Entry]
-        }
-        struct Champion: Codable, Hashable {
-            var name: String
-            var minutes: Int
-            var me: Bool
-        }
-        var boards: [Board]
-        var champion: Champion?
-    }
-
-    var weekLabel: String
-    var endsInDays: Int
-    var challenges: [Challenge]
-    var badges: [Badge]
-    var friends: Friends?
-
-    enum CodingKeys: String, CodingKey {
-        case challenges, badges, friends
-        case weekLabel = "week_label"
-        case endsInDays = "ends_in_days"
-    }
-}
-
-/// Mix « selon le moment » (`/home/mood`) : humeur, météo, titres.
-struct MoodMix: Decodable {
-    struct Weather: Decodable {
-        var label: String?
-        var temperature: Double?
-    }
-    var mood: String
-    var title: String
-    var emoji: String
-    var subtitle: String
-    var weather: Weather?
-    var tracks: [Track]
 }
 
 // MARK: - TV / PS5
@@ -1720,12 +1641,6 @@ struct AdminResult: Codable {
         case message, ok
         case loggedIn = "logged_in"
     }
-}
-
-/// « Titre du jour » (`/home/daily`).
-struct DailyTrack: Decodable {
-    let track: Track?
-    let reason: String
 }
 
 /// Lien de la page publique « J'écoute » (`/me/public-link`).

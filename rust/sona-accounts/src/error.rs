@@ -12,6 +12,9 @@ pub enum AppError {
     Unauthorized,
     #[error("accès refusé")]
     Forbidden,
+    /// Refus de la base avec une raison qu'on peut dire à la personne.
+    #[error("{0}")]
+    Refused(&'static str),
     /// Compte suspendu ou banni : l'app affiche l'écran de sanction.
     #[error("compte sanctionné")]
     Sanctioned { status: String, reason: Option<String>, until: Option<String> },
@@ -36,7 +39,7 @@ impl AppError {
     pub fn code(&self) -> &'static str {
         match self {
             AppError::Unauthorized => "unauthorized",
-            AppError::Forbidden => "forbidden",
+            AppError::Forbidden | AppError::Refused(_) => "forbidden",
             AppError::Sanctioned { .. } => "sanctioned",
             AppError::BadRequest(_) => "bad_request",
             AppError::NotFound => "not_found",
@@ -49,7 +52,7 @@ impl AppError {
     pub fn status(&self) -> StatusCode {
         match self {
             AppError::Unauthorized => StatusCode::UNAUTHORIZED,
-            AppError::Forbidden | AppError::Sanctioned { .. } => StatusCode::FORBIDDEN,
+            AppError::Forbidden | AppError::Refused(_) | AppError::Sanctioned { .. } => StatusCode::FORBIDDEN,
             AppError::BadRequest(_) => StatusCode::BAD_REQUEST,
             AppError::NotFound => StatusCode::NOT_FOUND,
             AppError::RateLimited => StatusCode::TOO_MANY_REQUESTS,
@@ -65,6 +68,7 @@ impl IntoResponse for AppError {
         let message = match &self {
             AppError::Unauthorized => "Connexion requise.".to_string(),
             AppError::Forbidden => "Action réservée à l'équipe de Sona.".to_string(),
+            AppError::Refused(why) => why.to_string(),
             AppError::Sanctioned { status, .. } => match status.as_str() {
                 "banned" => "Ton compte est banni.".to_string(),
                 _ => "Ton compte est suspendu.".to_string(),
@@ -95,6 +99,11 @@ impl From<sqlx::Error> for AppError {
         if let sqlx::Error::Database(db) = &e {
             let msg = db.message();
             match (db.code().as_deref(), msg) {
+                (Some("42501"), "target_rank_too_high") => return AppError::Refused("Ce compte a un rôle égal ou supérieur au tien."),
+                (Some("42501"), "cannot_target_self") => return AppError::Refused("Tu ne peux pas agir sur ton propre compte."),
+                (Some("42501"), "ban_requires_admin") => return AppError::Refused("Seul un admin peut lever un bannissement."),
+                (Some("42501"), "duration_too_long_for_moderator") => return AppError::Refused("Un modérateur ne peut pas suspendre plus de 7 jours."),
+                (Some("42501"), "last_admin") => return AppError::Refused("C'est le dernier admin : nommes-en un autre d'abord."),
                 (Some("42501"), _) => return AppError::Forbidden,
                 (Some("P0001"), "rate_limited") => return AppError::RateLimited,
                 (Some("P0002"), _) => return AppError::NotFound,

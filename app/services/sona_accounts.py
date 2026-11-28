@@ -70,6 +70,7 @@ class SonaAccounts:
         self._http = client or httpx.AsyncClient(timeout=6)
         self._verified: dict[str, tuple[float, Identity]] = {}
         self._profiles: dict[str, tuple[float, dict]] = {}
+        self._standing: dict[str, tuple[float, dict | None]] = {}
 
     async def aclose(self) -> None:
         await self._http.aclose()
@@ -105,6 +106,26 @@ class SonaAccounts:
             self._verified = {t: v for t, v in self._verified.items() if v[0] > now}
         self._verified[token] = (now + VERIFY_CACHE_SECONDS, who)
         return who
+
+    async def standing(self, uid: str) -> dict | None:
+        """Statut (et rôle) actuels d'une personne, gardés quelques secondes ; None : compte supprimé.
+        Pour les sessions d'appareil, qui n'ont pas de jeton Supabase à faire vérifier."""
+        now = time.monotonic()
+        hit = self._standing.get(uid)
+        if hit is not None and hit[0] > now:
+            return hit[1]
+        try:
+            got = (await self.profiles([uid])).get(uid)
+        except httpx.HTTPStatusError as exc:
+            raise Unavailable(str(exc)) from exc
+        self._standing[uid] = (now + VERIFY_CACHE_SECONDS, got)
+        return got
+
+    async def lastfm_link(self, uid: str) -> dict:
+        """Last.fm relié à un compte Sona : {"username": pseudo ou None, "scrobbling": bool}."""
+        resp = await self._get(f"/internal/lastfm/{uid}")
+        resp.raise_for_status()
+        return resp.json()
 
     async def friend_ids(self, uid: str) -> list[str]:
         resp = await self._get(f"/internal/friends/{uid}")

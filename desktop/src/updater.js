@@ -22,7 +22,8 @@ const { compareVersions } = require("./iphone");
 
 const MANIFEST_URL = "https://github.com/trysona/sona/releases/download/windows/latest.json";
 const RELEASE_PAGE = "https://github.com/trysona/sona/releases/tag/windows";
-const EVERY = 6 * 3_600_000;
+const EVERY = 3_600_000;
+const AGAIN = 15 * 60_000; // au retour sur le PC ou sur la fenêtre : pas plus souvent que ça
 
 const portable = !!process.env.PORTABLE_EXECUTABLE_FILE;
 
@@ -90,16 +91,20 @@ async function install() {
     if (!res.ok || !res.body) throw new Error(`Téléchargement impossible (code ${res.status}).`);
     const total = Number(res.headers.get("content-length")) || latest.setup.size || 0;
     const hash = crypto.createHash("sha256");
-    const out = fs.createWriteStream(dest);
+    // Écriture par promesses : disque plein = message d'erreur (un flux le laissait planter ou bloquer l'app).
+    const out = await fs.promises.open(dest, "w");
     let received = 0;
     let last = 0;
-    for await (const chunk of res.body) {
-      hash.update(chunk);
-      received += chunk.length;
-      if (!out.write(chunk)) await new Promise((r) => out.once("drain", r));
-      if (total && Date.now() - last > 150) { last = Date.now(); update({ downloading: received / total }); }
+    try {
+      for await (const chunk of res.body) {
+        hash.update(chunk);
+        received += chunk.length;
+        await out.writeFile(chunk);
+        if (total && Date.now() - last > 150) { last = Date.now(); update({ downloading: received / total }); }
+      }
+    } finally {
+      await out.close();
     }
-    await new Promise((resolve, reject) => out.end((err) => (err ? reject(err) : resolve())));
     const digest = hash.digest("hex");
     if (!latest.setup.sha256 || digest.toLowerCase() !== String(latest.setup.sha256).toLowerCase()) {
       fs.rmSync(dest, { force: true });
@@ -117,6 +122,12 @@ async function install() {
   }
 }
 
+/** Réveil du PC, fenêtre rouverte : on revérifie si la dernière recherche date un peu. */
+function maybeCheck() {
+  if (!app.isPackaged || settings.get("updatesCheck") === false) return;
+  if (!model.lastCheck || Date.now() - model.lastCheck > AGAIN) check();
+}
+
 function setOption(key, value) {
   settings.set(key, !!value);
   update({});
@@ -127,10 +138,10 @@ function init({ onState, onNotify, onBeforeInstall }) {
   notify = onNotify;
   beforeInstall = onBeforeInstall;
   if (!app.isPackaged) return;
-  setTimeout(() => settings.get("updatesCheck") !== false && check(), 20_000);
+  setTimeout(() => settings.get("updatesCheck") !== false && check(), 5_000);
   setInterval(() => settings.get("updatesCheck") !== false && check(), EVERY);
 }
 
 const snapshot = () => ({ ...model, autoCheck: settings.get("updatesCheck") !== false, autoInstall: !!settings.get("updatesInstall") });
 
-module.exports = { init, check, install, setOption, snapshot, RELEASE_PAGE };
+module.exports = { init, check, maybeCheck, install, setOption, snapshot, RELEASE_PAGE };

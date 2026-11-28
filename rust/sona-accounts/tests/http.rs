@@ -90,6 +90,7 @@ async fn a_moderator_has_limited_powers_over_http() {
     assert_eq!(ban.0, StatusCode::FORBIDDEN);
     let long = api.call("POST", "/admin/sanction", Some(&modo), Some(json!({ "target": target, "kind": "suspension", "reason": "motif valable", "duration_seconds": 30 * 86400 }))).await;
     assert_eq!(long.0, StatusCode::FORBIDDEN);
+    assert_eq!(long.1["message"], "Un modérateur ne peut pas suspendre plus de 7 jours.");
     for (path, body) in [
         ("/admin/role", json!({ "target": target, "role": "moderator", "reason": "motif valable" })),
         ("/admin/delete-user", json!({ "target": target, "reason": "motif valable" })),
@@ -204,6 +205,19 @@ async fn account_export_and_deletion() {
     assert_eq!(api.db.su_scalar("select count(*) from public.audit_log where action = 'account.delete_self'").await, "1");
     // Le jeton, lui, ne vaut plus rien.
     assert_eq!(api.call("GET", "/me", Some(&t), None).await.0, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn the_last_admin_keeps_their_music_when_deletion_is_refused() {
+    let music = common::mock::start(|_| (204, String::new())).await;
+    let url = music.url.clone();
+    let Some(api) = Api::with(move |cfg, _| cfg.music_internal_url = Some(url)).await else { return };
+    let (admin_id, admin) = staff(&api, "boss", "admin").await;
+    let (st, out) = api.call("DELETE", "/account", Some(&admin), Some(json!({ "confirm": "SUPPRIMER MON COMPTE" }))).await;
+    assert_eq!(st, StatusCode::FORBIDDEN);
+    assert_eq!(out["message"], "C'est le dernier admin : nommes-en un autre d'abord.");
+    assert_eq!(music.requests().len(), 0, "rien ne doit être effacé");
+    assert_eq!(api.db.su_scalar(&format!("select count(*) from auth.users where id = '{admin_id}'")).await, "1");
 }
 
 #[tokio::test]

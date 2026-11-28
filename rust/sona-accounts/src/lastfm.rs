@@ -316,12 +316,16 @@ pub async fn enqueue(State(s): State<AppState>, _i: Internal, Json(b): Json<Enqu
 
 /// Pseudo Last.fm d'un compte (l'import d'historique n'a besoin que de lui).
 pub async fn internal_user(State(s): State<AppState>, _i: Internal, Path(uid): Path<Uuid>) -> Result<Json<Value>> {
-    let name: Option<Option<String>> =
-        sqlx::query_scalar("select external_username from public.connected_services where user_id = $1 and provider = 'lastfm' and secret_encrypted is not null")
-            .bind(uid)
-            .fetch_optional(&s.pool)
-            .await?;
-    Ok(Json(json!({ "username": name.flatten() })))
+    let row: Option<(Option<String>, bool)> = sqlx::query_as(
+        "select cs.external_username, coalesce(us.scrobbling_enabled, true) from public.connected_services cs
+         left join public.user_settings us on us.user_id = cs.user_id
+         where cs.user_id = $1 and cs.provider = 'lastfm' and cs.secret_encrypted is not null",
+    )
+    .bind(uid)
+    .fetch_optional(&s.pool)
+    .await?;
+    let (name, scrobbling) = row.unwrap_or((None, false));
+    Ok(Json(json!({ "username": name, "scrobbling": scrobbling })))
 }
 
 // ── Envoi ────────────────────────────────────────────────────────────────

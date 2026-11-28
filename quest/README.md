@@ -17,8 +17,6 @@ le site comme n'importe quel autre appareil.
   changes de fenêtre ou lances un jeu. Réglage *Continuer pendant les jeux VR* (pas de focus audio).
 - **Sona Paroles** : une seconde icône, un petit panneau (pochette, paroles, contrôles) à poser
   où tu veux dans la pièce.
-- **Visualiseur** : barres et pulsation réagissant au son que Sona joue (analyse FFT de la sortie
-  de l'app, jamais le micro).
 
 ## Installer
 
@@ -40,8 +38,6 @@ Les autres clients affichent pour l'instant ce casque avec l'icône d'un ordinat
 
 ## Limites actuelles
 
-- Le visualiseur est une fenêtre 2D : l'affichage dans la pièce (réalité mixte, passthrough)
-  demande le SDK Meta Spatial, prévu dans un second temps.
 - « J'aime » n'est pas branché sur le casque.
 
 ## Compiler à la main

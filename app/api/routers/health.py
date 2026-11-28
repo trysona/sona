@@ -17,7 +17,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
-from app.api.auth import require_admin
+from app.api.auth import require_owner
 from app.api.routers import stream
 from app.api.state import ApiDeps
 from app.config import BASE_DIR
@@ -69,7 +69,7 @@ def _ytdlp_version() -> str | None:
 
 
 @router.get("/streaming")
-async def streaming_status(deps: ApiDeps = Depends(require_admin)) -> dict:
+async def streaming_status(deps: ApiDeps = Depends(require_owner)) -> dict:
     path = cookies_path(deps)
     return {
         "health": stream_health.status(),
@@ -87,7 +87,7 @@ class CookiesIn(BaseModel):
 
 
 @router.post("/youtube-cookies")
-async def upload_cookies(payload: CookiesIn, request: Request, deps: ApiDeps = Depends(require_admin)) -> dict:
+async def upload_cookies(payload: CookiesIn, request: Request, deps: ApiDeps = Depends(require_owner)) -> dict:
     """Nouveaux cookies YouTube, envoyés depuis l'app ou le site : écrits sur
     le serveur (lisibles par Sona seul), puis vérifiés auprès de YouTube."""
     try:
@@ -121,7 +121,7 @@ async def upload_cookies(payload: CookiesIn, request: Request, deps: ApiDeps = D
 
 
 @router.post("/streaming/selftest")
-async def run_selftest(deps: ApiDeps = Depends(require_admin)) -> dict:
+async def run_selftest(deps: ApiDeps = Depends(require_owner)) -> dict:
     """Essai de lecture d'une vidéo YouTube de référence."""
     ok, message = await asyncio.to_thread(ytdlp_updater.selftest)
     stream_health.record(ok, None if ok else stream_health.classify(message))
@@ -129,19 +129,19 @@ async def run_selftest(deps: ApiDeps = Depends(require_admin)) -> dict:
 
 
 @router.post("/ytdlp/update", status_code=status.HTTP_202_ACCEPTED)
-async def update_ytdlp(deps: ApiDeps = Depends(require_admin)) -> dict:
+async def update_ytdlp(deps: ApiDeps = Depends(require_owner)) -> dict:
     """Mise à jour de yt-dlp tout de suite (sinon chaque nuit). Tourne à
     part : elle redémarre Sona si une nouvelle version arrive."""
-    log = open(BASE_DIR / "data" / "ytdlp_update.log", "a")
-    subprocess.Popen(
-        [sys.executable, "-m", "app.services.ytdlp_updater"],
-        cwd=BASE_DIR, stdout=log, stderr=log, start_new_session=True,
-    )
+    with open(BASE_DIR / "data" / "ytdlp_update.log", "a") as log:  # le processus garde sa propre copie
+        subprocess.Popen(
+            [sys.executable, "-m", "app.services.ytdlp_updater"],
+            cwd=BASE_DIR, stdout=log, stderr=log, start_new_session=True,
+        )
     return {"started": True, "message": "Mise à jour lancée : Sona redémarre dans une minute si une nouvelle version arrive."}
 
 
 @router.post("/diagnose/{source}/{source_id}")
-async def diagnose_track(source: str, source_id: str, deps: ApiDeps = Depends(require_admin)) -> dict:
+async def diagnose_track(source: str, source_id: str, deps: ApiDeps = Depends(require_owner)) -> dict:
     """« Diagnostic de lecture » d'un titre : relance sa préparation (sans
     attendre la fin du délai après un échec) et rend le compte rendu — ce
     que YouTube et SoundCloud ont renvoyé, et pourquoi chaque source a été
@@ -159,7 +159,7 @@ async def diagnose_track(source: str, source_id: str, deps: ApiDeps = Depends(re
 
 
 @router.post("/diagnose/{source}/{source_id}/unreject")
-async def unreject_sources(source: str, source_id: str, deps: ApiDeps = Depends(require_admin)) -> dict:
+async def unreject_sources(source: str, source_id: str, deps: ApiDeps = Depends(require_owner)) -> dict:
     """Réautorise les sources écartées par « Mauvaise version ? » pour ce
     titre : quand la seule version disponible a été signalée, le titre ne
     se lance plus du tout. Elles repassent la vérification par empreinte."""
@@ -176,7 +176,7 @@ class UseSourceIn(BaseModel):
 
 @router.post("/diagnose/{source}/{source_id}/use-source")
 async def use_source(
-    source: str, source_id: str, payload: UseSourceIn, deps: ApiDeps = Depends(require_admin)
+    source: str, source_id: str, payload: UseSourceIn, deps: ApiDeps = Depends(require_owner)
 ) -> dict:
     """Choisit à la main la source d'un titre qui n'a pas de bonne version : un
     lien YouTube ou SoundCloud collé depuis le diagnostic. Elle est essayée en

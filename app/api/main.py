@@ -123,7 +123,8 @@ async def lifespan(app: FastAPI):
         karaoke_service.start_nightly(app.state.deps)
         # Coffre Drivecord : met peu à peu de côté les titres déjà sur le disque.
         vaulter = asyncio.create_task(audio_vault.backfill_loop(app.state.deps))
-        asyncio.create_task(asyncio.to_thread(ytdlp_updater.ensure_cron))
+        cron = asyncio.create_task(asyncio.to_thread(ytdlp_updater.ensure_cron))
+        app.state.cron_task = cron  # gardée : sans référence elle pourrait disparaître avant la fin
     try:
         yield
     finally:

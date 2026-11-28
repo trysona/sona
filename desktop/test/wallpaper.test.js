@@ -16,7 +16,7 @@ test("pose la pochette floue, puis remet le fond d'écran d'avant", async () => 
   const fakeImage = { isEmpty: () => false, resize: () => fakeImage, toBitmap: () => Buffer.alloc(16, 200), toJPEG: () => Buffer.from("jpg") };
   const nativeImage = { createFromBuffer: () => fakeImage, createFromBitmap: () => fakeImage };
   const scripts = [];
-  const wall = new CoverWallpaper({ dir, settings, nativeImage, fetchImage: async () => Buffer.from("x"), screenSize: () => ({ width: 2, height: 2 }), run: async (s) => scripts.push(s) });
+  const wall = new CoverWallpaper({ dir, settings, nativeImage, fetchImage: async () => Buffer.from("x"), screenSize: () => ({ width: 2, height: 2 }), run: async (s) => scripts.push(s), current: async () => "C:\\Windows\\Web\\fond.jpg" });
   await wall.setEnabled(true, "win32");
   await wall.apply("https://cdn/images/cover/abc/250x250-000000-80-0-0.jpg");
   assert.equal(scripts.length, 1);
@@ -27,4 +27,19 @@ test("pose la pochette floue, puis remet le fond d'écran d'avant", async () => 
   await wall.setEnabled(false, "win32");
   assert.match(scripts[1], /C:\\Windows\\Web\\fond\.jpg/);
   assert.equal(store.wallpaperOriginal, null);
+});
+
+test("à la fermeture, le fond d'écran d'avant revient ; après un arrêt brutal, il n'est pas oublié", async () => {
+  const store = { wallpaperOriginal: "C:\\perso.jpg" };
+  const settings = { get: (k) => store[k], set: (k, v) => (store[k] = v) };
+  const now = [];
+  // Le fond actuel est une image de Sona (arrêt brutal) : l'original noté avant est conservé.
+  const wall = new CoverWallpaper({ settings, runNow: (s) => now.push(s), current: async () => "C:\\Users\\x\\fond-ecran\\fond-sona-a.jpg" });
+  await wall.setEnabled(true, "win32");
+  assert.equal(store.wallpaperOriginal, "C:\\perso.jpg");
+  wall.restoreNow();
+  assert.match(now[0], /perso\.jpg/);
+  assert.equal(store.wallpaperOriginal, null);
+  wall.restoreNow();
+  assert.equal(now.length, 1, "une seule fois");
 });

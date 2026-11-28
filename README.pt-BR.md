@@ -36,11 +36,11 @@ Aberto a todos: crie uma conta com e-mail, Google, Discord ou GitHub (ou passkey
 
 ### 🎛️ Mixar
 - AutoMix: transições no ritmo com análise de tempo, compasso e tom
-- Rádios, mix diário, rádio DJ com voz de DJ
+- Rádios e mix diário
 
 ### 🤝 Compartilhar
 - Sona Connect: controle a reprodução em qualquer aparelho seu
-- Ouvir junto, amigos e Blend, playlists colaborativas, paradas semanais
+- Ouvir junto, amigos e Blend, playlists colaborativas
 
 ### ✨ Descobrir
 - Próximos lançamentos com contagem regressiva, estatísticas, mapa das suas audições, retrospectivas em formato de stories

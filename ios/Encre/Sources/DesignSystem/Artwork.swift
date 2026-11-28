@@ -206,8 +206,7 @@ enum ArtworkPalette {
 /// des bords, comme le lecteur de Musique.
 ///
 /// Avec `reactive`, il bat avec la musique : les basses mesurées par le fil
-/// audio quand il les mesure (visualiseur, égaliseur, « Fond qui bat au
-/// son »), sinon une respiration douce sur le tempo du titre.
+/// audio quand il les mesure (« Fond qui bat au son »), sinon une respiration douce sur le tempo du titre.
 ///
 /// Sobre : immobile avec « Réduire les animations », arrêté hors écran et
 /// quand l'app passe en arrière-plan, 60 images/s au plus (20 en mode

@@ -1,6 +1,5 @@
-"""Petits plus de l'app : nouvelles sorties, « il y a un an », 
-karaoké (instrumentale), moments sur la timeline, carte des écoutes, défis
-et badges."""
+"""Petits plus de l'app : nouvelles sorties, karaoké (instrumentale), moments sur
+la timeline, carte des écoutes."""
 
 from __future__ import annotations
 
@@ -13,53 +12,10 @@ from app.api.schemas import Album, Track
 from app.api.state import ApiDeps
 from app.services import lookup
 from app.providers.base import TrackInfo
-from app.services import social, challenges, discover, dj_voice, query_cache, recognize, instrumental, listening_map, memories, releases, smart_playlists
+from app.services import social, discover, query_cache, recognize, instrumental, listening_map, releases, smart_playlists
 from app.services import stats as stats_service
 
 router = APIRouter(tags=["extras"])
-
-_synthesizers: dict[str, dj_voice.Synthesizer] = {}
-
-
-@router.get("/dj/intro")
-async def dj_intro(
-    title: str = Query(..., min_length=1),
-    artist: str = Query(..., min_length=1),
-    prev_title: str | None = Query(None),
-    prev_artist: str | None = Query(None),
-    year: int | None = Query(None),
-    voice: str = Query(dj_voice.DEFAULT_VOICE),
-    tz: str | None = Query(None),
-    deps: ApiDeps = Depends(require_token),
-) -> dict:
-    """Annonce du DJ vocal pour le titre qui démarre : le texte, et sa
-    lecture en MP3 (base64) par une voix neuronale — `audio` vaut null si
-    la voix est injoignable (l'app lit alors le texte elle-même)."""
-    import base64
-    import random
-    from datetime import datetime, timedelta, timezone
-
-    now = datetime.now(timezone.utc)
-    recent = await deps.repo.plays_between(
-        deps.user_id, stats_service.to_utc_iso(now - timedelta(days=60)), None
-    )
-    first_seen = await deps.repo.plays_first_by_artist(deps.user_id)
-    key_title, key_artist = title.casefold(), artist.casefold()
-    ctx = dj_voice.Context(
-        title=title, artist=artist, previous_title=prev_title, previous_artist=prev_artist,
-        track_plays=sum(1 for p in recent if p.title.casefold() == key_title and p.artist.casefold() == key_artist),
-        artist_plays=sum(1 for p in recent if p.artist.casefold() == key_artist),
-        new_artist=key_artist not in first_seen,
-        hour=now.astimezone(stats_service.resolve_tz(tz)).hour,
-        year=year,
-    )
-    # Même annonce pour un même titre dans la journée : le cache de voix sert.
-    rng = random.Random(f"{deps.user_id}|{key_title}|{key_artist}|{now.date()}|{prev_title}")
-    text = dj_voice.script(ctx, rng)
-    cache = deps.settings.database_path.parent / "dj_cache"
-    synthesizer = _synthesizers.setdefault(str(cache), dj_voice.Synthesizer(cache))
-    audio = await synthesizer.speak(text, voice)
-    return {"text": text, "audio": base64.b64encode(audio).decode() if audio else None}
 
 
 @router.get("/smart")
@@ -94,11 +50,6 @@ async def upcoming_releases(deps: ApiDeps = Depends(require_token)) -> list[Albu
     return [Album.from_info(a) for a in await releases.upcoming_releases(deps, deps.user_id)]
 
 
-@router.get("/memories")
-async def on_this_day(tz: str | None = Query(None), deps: ApiDeps = Depends(require_token)) -> list[dict]:
-    return await memories.memories(deps.repo, deps.user_id, tz)
-
-
 @router.get("/instrumental/{source}/{source_id}")
 async def find_instrumental(
     source: str,
@@ -123,14 +74,6 @@ class MomentIn(BaseModel):
     position: float = Field(ge=0, le=7200)
     emoji: str = Field(min_length=1, max_length=8)
     text: str | None = Field(None, max_length=80)
-
-
-async def _board_people(deps: ApiDeps) -> list:
-    """Classements : seulement les amis dont les statistiques sont visibles pour toi, et toi."""
-    people = list(await social.friend_accounts(deps, "stats"))
-    if deps.account is not None:
-        people.append(deps.account)
-    return people
 
 
 async def _circle(deps: ApiDeps) -> dict[int, tuple[str, str | None]]:
@@ -169,19 +112,12 @@ async def delete_moment(moment_id: int, deps: ApiDeps = Depends(require_token)) 
     return {"deleted": True}
 
 
-# -- Carte, défis ------------------------------------------------------------
+# -- Carte -------------------------------------------------------------------
 
 
 @router.get("/map")
 async def listening_places(deps: ApiDeps = Depends(require_token)) -> list[dict]:
     return await listening_map.places(deps.repo, deps.user_id)
-
-
-@router.get("/challenges")
-async def weekly_challenges(tz: str | None = Query(None), deps: ApiDeps = Depends(require_token)) -> dict:
-    out = await challenges.compute(deps.repo, deps.user_id, tz)
-    out["friends"] = await challenges.friends_boards(deps.repo, deps.user_id, tz, people=await _board_people(deps))
-    return out
 
 
 @router.get("/discover/radio/{source}/{artist_id}", response_model=list[Track])
@@ -197,22 +133,16 @@ async def discover_radio(source: str, artist_id: str, artist: str = Query(""),
     return [Track.from_info(t) for t in tracks]
 
 
-@router.get("/home/mood")
-async def mood(tz: str | None = Query(None), lat: float | None = Query(None, ge=-90, le=90),
-               lon: float | None = Query(None, ge=-180, le=180), deps: ApiDeps = Depends(require_token)) -> dict:
-    """Mix « selon la météo » : l'humeur du moment (heure, jour, météo si la position est donnée)."""
-    out = await discover.mood_mix(deps, tz, lat, lon)
-    out["tracks"] = [Track.from_info(t).model_dump() for t in out["tracks"]]
-    return out
-
-
 @router.post("/recognize")
 async def recognize_song(request: Request, deps: ApiDeps = Depends(limits.heavy("recognize", 20))) -> dict:
     """« Reconnaître un titre » : l'enregistrement (corps brut : WAV, M4A,
     WebM…) est identifié, puis retrouvé dans le catalogue de Sona."""
-    audio = await request.body()
-    if len(audio) > recognize.MAX_BYTES:
-        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Enregistrement trop long.")
+    audio = bytearray()
+    async for chunk in request.stream():  # coupé dès que c'est trop : jamais un envoi énorme en mémoire
+        audio += chunk
+        if len(audio) > recognize.MAX_BYTES:
+            raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Enregistrement trop long.")
+    audio = bytes(audio)
     if len(audio) < 2000:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Enregistrement vide.")
     try:

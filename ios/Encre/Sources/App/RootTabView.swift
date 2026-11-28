@@ -201,13 +201,6 @@ struct RootTabView: View {
             } else {
                 showingParty = true
             }
-        case "daily":
-            // Notification « Titre du jour » : il se lance.
-            Task {
-                guard let track = try? await APIClient.shared.dailyTrack().track else { return }
-                player.play(track, context: [track], name: "Titre du jour")
-                showingPlayer = true
-            }
         case "car":
             CarMode.shared.enter(play: query.first { $0.name == "play" }?.value == "1")
         case "shazam":
@@ -221,13 +214,6 @@ struct RootTabView: View {
             }
         case "player":
             if player.current != nil || remote.isRemote { showingPlayer = true }
-        case "djradio":
-            if let track = player.current {
-                Task { try? await player.playDJRadio(from: track) }
-                showingPlayer = true
-            } else {
-                selectedTab = .home
-            }
         default:
             break
         }

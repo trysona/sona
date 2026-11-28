@@ -8,6 +8,7 @@ import time
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
+from app.api import limits
 from app.api.auth import get_deps, identify, require_token
 from app.api.clientip import client_ip
 from app.api.routers.accounts import AccountOut
@@ -105,6 +106,7 @@ async def details(user_code: str, deps: ApiDeps = Depends(identify)) -> dict:
 @router.post("/approve")
 async def approve(payload: CodeIn, deps: ApiDeps = Depends(require_token)) -> dict:
     """Autorise l'appareil : il reçoit sa propre session sur ce compte."""
+    limits.no_guest(deps)  # sa session d'appareil perdrait les limites des invités
     if deps.account is None:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST, "Connecte-toi avec ton compte Sona (pas avec le jeton du serveur) pour autoriser un appareil.",

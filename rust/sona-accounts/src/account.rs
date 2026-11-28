@@ -47,11 +47,12 @@ pub async fn delete(State(s): State<AppState>, AuthAny(p): AuthAny, Json(b): Jso
         return Err(AppError::bad(format!("Pour confirmer, écris exactement : {DELETE_PHRASE}")));
     }
     ratelimit::check(&s.pool, &format!("delete_account:{}", p.id), 3, 3600).await?;
-    // Données musicales d'abord (voir admin::delete_user).
+    // La base d'abord : elle refuse le dernier admin, et ce refus doit arriver AVANT d'effacer quoi que ce soit.
+    sqlx::query("select public.log_account_deletion($1, $1, 'suppression demandée par la personne concernée')").bind(p.id).execute(&s.pool).await?;
+    // Puis les données musicales, avant le compte (voir admin::delete_user).
     if music::configured(&s) {
         music::call(&s, reqwest::Method::DELETE, &format!("/internal/users/{}", p.id), None).await?;
     }
-    sqlx::query("select public.log_account_deletion($1, $1, 'suppression demandée par la personne concernée')").bind(p.id).execute(&s.pool).await?;
     sqlx::query("delete from auth.users where id = $1").bind(p.id).execute(&s.pool).await?;
     s.auth.invalidate(p.id);
     Ok(Json(json!({ "deleted": true })))

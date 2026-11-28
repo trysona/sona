@@ -156,7 +156,16 @@ def test_shared_and_collaborative_playlists(client):
     track = {"source": "deezer", "source_id": "1", "title": "T", "artist": "A", "album": None, "year": None,
              "duration_seconds": 100, "cover_url": None, "artist_source_id": None, "album_source_id": None}
 
+    carl, _ = login(client, "carl", social=False)  # un inconnu : ni lecture, ni écriture, ni partage
     pid = client.post("/me/playlists", headers=bob, json={"name": "Soirée", "tracks": [track]}).json()["id"]
+    for visibility in ("friends", "collaborative"):
+        client.patch(f"/me/playlists/{pid}", headers=bob, json={"visibility": visibility})
+        assert client.get(f"/me/playlists/{pid}", headers=carl).status_code == 404
+        assert client.post(f"/me/playlists/{pid}/tracks", headers=carl, json={"tracks": [track]}).status_code == 404
+        assert client.put(f"/me/playlists/{pid}/order", headers=carl, json={"entry_ids": []}).status_code == 404
+        assert client.get("/me/playlists", headers=carl).json() == []
+        assert client.post("/me/shares", headers=carl, json={"kind": "playlist", "id": str(pid)}).status_code == 400
+    client.patch(f"/me/playlists/{pid}", headers=bob, json={"visibility": "private"})
     # Privée : invisible pour Alice.
     assert client.get(f"/me/playlists/{pid}", headers=alice).status_code == 404
 

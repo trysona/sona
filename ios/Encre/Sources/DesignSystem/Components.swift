@@ -115,17 +115,6 @@ struct TrackRow: View {
             Button { PlayerManager.shared.playLater([track]) } label: {
                 Label("Lire après", systemImage: "text.line.last.and.arrowtriangle.forward")
             }
-            Button {
-                Task {
-                    do {
-                        try await PlayerManager.shared.playDJRadio(from: track)
-                    } catch {
-                        PlayerManager.shared.errorMessage = error.localizedDescription
-                    }
-                }
-            } label: {
-                Label("Radio DJ à partir de ce titre", systemImage: "dial.medium")
-            }
             if downloads.isDownloaded(track) {
                 Button(role: .destructive) { downloads.remove(track) } label: {
                     Label("Supprimer le téléchargement", systemImage: "arrow.down.circle.dotted")
@@ -153,7 +142,7 @@ struct TrackRow: View {
                     }
                 }
             }
-            if !track.isExclusive, AuthManager.shared.account?.isAdmin == true {
+            if !track.isExclusive, AuthManager.shared.account?.managesPlayback == true {
                 Button { showsDiagnostic = true } label: { Label("Diagnostic de lecture", systemImage: "waveform.path.ecg") }
             }
             Button { showsCredits = true } label: { Label("Crédits du titre", systemImage: "list.bullet.rectangle") }

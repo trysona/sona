@@ -38,7 +38,6 @@ struct FullPlayerView: View {
     @State private var controlsHidden = false
     @State private var activity = 0
     @State private var scrubbing = false
-    @AppStorage("encre.visualizer") private var visualizer = false
     @AppStorage(Look.immersiveKey) private var immersive = true
     /// Musique sur un autre appareil (PC…) : le lecteur devient sa télécommande.
     @ObservedObject private var remote = RemoteFlag.shared
@@ -134,11 +133,6 @@ struct FullPlayerView: View {
             motionURL = nil
             if let track = player.current { motionURL = await MotionStore.albumURL(for: track) }
         }
-        // Visualiseur : le traitement du son mesure les niveaux seulement
-        // quand il est affiché ; branché sur le titre en cours au besoin.
-        .onAppear { syncVisualizer() }
-        .onChange(of: visualizer) { _, _ in syncVisualizer() }
-        .onChange(of: player.current?.id) { _, _ in syncVisualizer() }
         .overlay(alignment: .top) {
             if let gesture = gestures.lastGesture {
                 Label(gesture, systemImage: "airpods")
@@ -190,11 +184,6 @@ struct FullPlayerView: View {
         }
         // Retour de la télécommande sans titre sur l'iPhone : rien à montrer.
         .onAppear { if player.current == nil { dismiss() } }
-    }
-
-    private func syncVisualizer() {
-        AudioEffects.visualizerOn = visualizer
-        if visualizer { player.audioEffectsChanged() }
     }
 
     private func revealControls() {
@@ -279,7 +268,6 @@ struct FullPlayerView: View {
                 setSleepTimer: { player.setSleepTimer($0) },
                 openRoute: onOpenRoute,
                 startRadio: { source, id in startArtistRadio(source: source, artistId: id) },
-                startDJRadio: { track in startDJRadio(track) },
                 toggleLike: { track in Task { await toggleLike(track) } },
                 reportWrongVersion: { _ in confirmingWrongVersion = true },
                 openSound: { showingSound = true },
@@ -304,12 +292,6 @@ struct FullPlayerView: View {
                 // La pochette est derrière (voir `ImmersiveArtwork`) : on ne
                 // garde que le titre, calé en bas.
                 Spacer(minLength: 0)
-                if visualizer {
-                    VisualizerBars(isPlaying: player.isPlaying)
-                        .frame(height: 44)
-                        .padding(.bottom, 16)
-                        .transition(.opacity)
-                }
                 titleRow(track, compact: false)
                     .padding(.bottom, 18)
             } else {
@@ -338,12 +320,6 @@ struct FullPlayerView: View {
             }
             .aspectRatio(1, contentMode: .fit)
             .animation(Motion.smooth, value: track.id)
-            if visualizer {
-                VisualizerBars(isPlaying: player.isPlaying)
-                    .frame(height: 44)
-                    .padding(.top, 22)
-                    .transition(.opacity)
-            }
             Spacer(minLength: 24)
             titleRow(track, compact: false)
                 .padding(.bottom, 18)
@@ -632,18 +608,6 @@ struct FullPlayerView: View {
             if player.current?.id == track.id { player.reloadCurrent() }
         } catch {
             player.errorMessage = error.localizedDescription
-        }
-    }
-
-    private func startDJRadio(_ track: Track) {
-        isStartingRadio = true
-        Task {
-            do {
-                try await player.playDJRadio(from: track)
-            } catch {
-                player.errorMessage = error.localizedDescription
-            }
-            isStartingRadio = false
         }
     }
 
@@ -977,7 +941,6 @@ struct PlayerActionsMenu: UIViewRepresentable, Equatable {
         var setSleepTimer: (PlayerManager.SleepTimer?) -> Void
         var openRoute: (Route) -> Void
         var startRadio: (String, String) -> Void
-        var startDJRadio: (Track) -> Void
         var toggleLike: (Track) -> Void
         var reportWrongVersion: (Track) -> Void
         var openSound: () -> Void
@@ -1068,7 +1031,7 @@ struct PlayerActionsMenu: UIViewRepresentable, Equatable {
             }
             main.append(UIMenu(title: "Exclu", image: UIImage(systemName: "sparkles"), children: exclusive))
         }
-        if !track.isExclusive, AuthManager.shared.account?.isAdmin == true {
+        if !track.isExclusive, AuthManager.shared.account?.managesPlayback == true {
             main.append(item("Diagnostic de lecture", "waveform.path.ecg") { actions.showDiagnostic(track) })
         }
         main.append(UIMenu(title: "Réagir et partager", image: UIImage(systemName: "square.and.arrow.up"), children: [
@@ -1077,9 +1040,7 @@ struct PlayerActionsMenu: UIViewRepresentable, Equatable {
             item("Partager le titre…", "link") { actions.shareLink(track) },
             item("Partager en story", "square.and.arrow.up.on.square") { actions.shareStory(track) },
         ]))
-        var radios: [UIMenuElement] = [
-            item("Radio DJ à partir de ce titre", "dial.medium") { actions.startDJRadio(track) },
-        ]
+        var radios: [UIMenuElement] = []
         if let artistId = track.artistSourceId {
             radios.append(item("Radio de l'artiste", "dot.radiowaves.left.and.right") {
                 actions.startRadio(track.artistRouteSource, artistId)
@@ -1130,13 +1091,16 @@ struct PlayerActionsMenu: UIViewRepresentable, Equatable {
                 actions.openRoute(.album(source: track.source, id: albumId))
             })
         }
-        return UIMenu(children: [
+        var groups = [
             UIMenu(options: .displayInline, children: main),
             UIMenu(options: .displayInline, children: navigation),
-            UIMenu(options: .displayInline, children: [
+        ]
+        if AuthManager.shared.account?.managesPlayback == true {
+            groups.append(UIMenu(options: .displayInline, children: [
                 item("Mauvaise version ?", "exclamationmark.bubble") { actions.reportWrongVersion(track) },
-            ]),
-        ])
+            ]))
+        }
+        return UIMenu(children: groups)
     }
 }
 

@@ -1,13 +1,7 @@
 package fr.sona.quest
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.media.audiofx.Visualizer
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,7 +28,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -44,24 +37,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import androidx.core.content.ContextCompat
-import kotlin.math.hypot
-import kotlin.math.max
-import kotlin.math.pow
 
-private enum class Pane(val label: String) { Lyrics("Paroles"), Queue("À suivre"), Visualizer("Visualiseur") }
+private enum class Pane(val label: String) { Lyrics("Paroles"), Queue("À suivre") }
 
 @Composable
 fun PlayerScreen() {
@@ -188,7 +172,6 @@ private fun PaneContent(pane: Pane) {
     when (pane) {
         Pane.Lyrics -> LyricsView(Modifier.fillMaxSize(), 32.sp)
         Pane.Queue -> QueuePane()
-        Pane.Visualizer -> VisualizerPane()
     }
 }
 
@@ -200,91 +183,6 @@ private fun QueuePane() {
     LaunchedEffect(Unit) { state.scrollToItem((index - 1).coerceAtLeast(0)) }
     LazyColumn(Modifier.fillMaxSize(), state = state, contentPadding = PaddingValues(bottom = 24.dp)) {
         itemsIndexed(queue) { i, t -> TrackItem(t, { Hub.jumpTo(i) }, current = i == index) }
-    }
-}
-
-// ── Visualiseur : le son que Sona joue, en barres et en pulsation ───────────────────────
-
-private fun fftToBars(fft: ByteArray, n: Int, previous: FloatArray): FloatArray {
-    val bins = fft.size / 2 - 1
-    val out = FloatArray(n)
-    if (bins < 8) return out
-    for (i in 0 until n) {
-        val lo = bins.toDouble().pow(i.toDouble() / n).toInt().coerceIn(1, bins - 1)
-        val hi = bins.toDouble().pow((i + 1).toDouble() / n).toInt().coerceIn(lo + 1, bins)
-        var m = 0f
-        for (k in lo until hi) m = max(m, hypot(fft[2 * k].toFloat(), fft[2 * k + 1].toFloat()))
-        val v = (m / 128f).coerceIn(0f, 1f).pow(0.6f)
-        out[i] = max(v, previous.getOrElse(i) { 0f } * 0.86f)
-    }
-    return out
-}
-
-@Composable
-private fun VisualizerPane() {
-    val look = LocalLook.current
-    val context = LocalContext.current
-    var granted by remember {
-        mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED)
-    }
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted = it }
-    if (!granted) {
-        Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            SonaText("Visualiseur", 24.sp, FontWeight.Bold, title = true)
-            Spacer(Modifier.height(8.dp))
-            SonaText(
-                "Il analyse le son que Sona joue lui-même, jamais le micro. Android appelle ça « enregistrer l'audio », d'où cette autorisation.",
-                15.sp, tone = 1, align = TextAlign.Center,
-            )
-            Spacer(Modifier.height(16.dp))
-            PillButton("Autoriser", { launcher.launch(Manifest.permission.RECORD_AUDIO) })
-        }
-        return
-    }
-    val sessionId by Hub.audioSessionId.collectAsState()
-    var bars by remember { mutableStateOf(FloatArray(48)) }
-    DisposableEffect(sessionId) {
-        var viz: Visualizer? = null
-        try {
-            viz = Visualizer(sessionId).apply {
-                captureSize = Visualizer.getCaptureSizeRange()[1].coerceAtMost(1024)
-                setDataCaptureListener(object : Visualizer.OnDataCaptureListener {
-                    override fun onWaveFormDataCapture(v: Visualizer?, waveform: ByteArray?, samplingRate: Int) = Unit
-                    override fun onFftDataCapture(v: Visualizer?, fft: ByteArray?, samplingRate: Int) {
-                        if (fft != null) bars = fftToBars(fft, 48, bars)
-                    }
-                }, Visualizer.getMaxCaptureRate() / 2, false, true)
-                enabled = true
-            }
-        } catch (e: Exception) {
-            Hub.message.value = "Visualiseur indisponible : ${e.message}"
-        }
-        onDispose {
-            runCatching {
-                viz?.enabled = false
-                viz?.release()
-            }
-        }
-    }
-    val low = look.accent
-    val high = look.neon ?: look.primary
-    Canvas(Modifier.fillMaxSize()) {
-        val n = bars.size
-        val gap = 5.dp.toPx()
-        val w = (size.width - gap * (n + 1)) / n
-        val mid = size.height / 2f
-        val bass = bars.take(5).average().toFloat().coerceIn(0f, 1f)
-        drawCircle(low.copy(alpha = 0.10f + 0.22f * bass), radius = size.minDimension * (0.22f + 0.2f * bass), center = Offset(size.width / 2, mid))
-        for (i in 0 until n) {
-            val h = (size.height * 0.46f * bars[i]).coerceAtLeast(4.dp.toPx())
-            val t = i / (n - 1f)
-            val color = Color(
-                red = low.red + (high.red - low.red) * t,
-                green = low.green + (high.green - low.green) * t,
-                blue = low.blue + (high.blue - low.blue) * t,
-            )
-            drawRoundRect(color, Offset(gap + i * (w + gap), mid - h), Size(w, h * 2), CornerRadius(w / 2, w / 2))
-        }
     }
 }
 

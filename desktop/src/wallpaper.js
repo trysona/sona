@@ -5,7 +5,7 @@
    Le flou vient d'un aller-retour de taille (pochette réduite à 32 px puis
    agrandie à la taille de l'écran) : lisse, sans module natif. */
 
-const { spawn, execFile } = require("node:child_process");
+const { spawn, spawnSync, execFile } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 
@@ -42,8 +42,11 @@ class CoverWallpaper {
    * @param {(url: string) => Promise<Buffer>} o.fetchImage
    * @param {() => {width: number, height: number}} o.screenSize
    */
-  constructor({ dir, settings, nativeImage, fetchImage, screenSize, run } = {}) {
+  constructor({ dir, settings, nativeImage, fetchImage, screenSize, run, runNow, current } = {}) {
     Object.assign(this, { dir, settings, nativeImage, fetchImage, screenSize });
+    this.current = current || currentWallpaper;
+    // À la fermeture : synchrone, un PowerShell lancé en tâche de fond serait tué avec l'app.
+    this.runNow = runNow || ((script) => spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script], { windowsHide: true, stdio: "ignore", timeout: 10_000 }));
     this.run = run || ((script) => new Promise((resolve) => {
       const child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script], { windowsHide: true, stdio: "ignore" });
       child.on("exit", resolve);
@@ -60,7 +63,9 @@ class CoverWallpaper {
     this.enabled = enabled;
     clearTimeout(this.timer);
     if (enabled) {
-      if (!this.settings.get("wallpaperOriginal")) this.settings.set("wallpaperOriginal", (await currentWallpaper()) || "");
+      const now = (await this.current()) || "";
+      // Pas une image de Sona : c'est le fond à remettre. Sinon (arrêt brutal), on garde celui noté avant.
+      if (!path.basename(now).startsWith("fond-sona-")) this.settings.set("wallpaperOriginal", now);
     } else await this.restore();
   }
 
@@ -87,6 +92,17 @@ class CoverWallpaper {
     fs.writeFileSync(file, image.toJPEG(90));
     await this.run(setScript(file));
     this.cover = url;
+  }
+
+  /** Sona se ferme : le fond d'écran d'avant revient tout de suite. */
+  restoreNow() {
+    if (!this.enabled) return;
+    this.enabled = false;
+    clearTimeout(this.timer);
+    const original = this.settings.get("wallpaperOriginal");
+    if (!original) return;
+    this.runNow(setScript(original));
+    this.settings.set("wallpaperOriginal", null);
   }
 
   /** Remet le fond d'écran d'avant. */

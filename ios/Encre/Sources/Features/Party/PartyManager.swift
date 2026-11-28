@@ -111,7 +111,8 @@ final class PartyManager: ObservableObject {
     /// Hôte : envoie l'état du lecteur s'il a changé (titre, pause, saut).
     private func publishIfNeeded(_ current: PartyState) async -> PartyState {
         let track = player.current
-        let paused = !player.isPlaying
+        // Titre en train de charger : pas une pause, sinon les invités s'arrêtaient à chaque changement.
+        let paused = !player.isPlaying && !player.isLoading
         let position = player.positionSeconds
         var changed = sent == nil || sent?.trackId != track?.id || sent?.paused != paused
         if let sent, !changed, !paused {

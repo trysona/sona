@@ -17,6 +17,7 @@ class FakeAccounts:
         # uid -> permissions que cette personne accorde à ses amis (toutes accordées par défaut)
         self.grants: dict[str, dict[str, bool]] = {}
         self.profile_data: dict[str, dict] = {}
+        self.lastfm: dict[str, dict] = {}
         self.offensive_words: set[str] = {"interdit"}
         self.scrobbles: list[tuple] = []
         self.down = False
@@ -37,6 +38,16 @@ class FakeAccounts:
         if who is None:
             raise InvalidToken()
         return who
+
+    async def standing(self, uid):
+        if self.down:
+            from app.services.sona_accounts import Unavailable
+
+            raise Unavailable("down")
+        return self.profile_data.get(uid)
+
+    async def lastfm_link(self, uid):
+        return self.lastfm.get(uid, {"username": None, "scrobbling": False})
 
     async def profiles(self, ids):
         return {i: self.profile_data[i] for i in ids if i in self.profile_data}

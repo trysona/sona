@@ -223,7 +223,9 @@ const Sidebar = (() => {
     const matches = (a, path) => path === a.dataset.nav || path.startsWith(`${a.dataset.nav}/`) || (a.dataset.nav === "admin" && path.startsWith("admin"));
     const hash = location.hash.replace(/^#\//, "") || "home";
     // Fiche (album, artiste…) sans entrée au menu : on garde allumée la rubrique d'où l'on vient.
-    const current = links.some((a) => matches(a, hash)) ? hash : nav?.tab || "home";
+    // Les réglages n'appartiennent à aucune rubrique : rien d'allumé, plutôt que la page précédente.
+    const aside = /^(settings|appearance|devices|status|health|sound|iphone)(\/|$)/.test(hash);
+    const current = links.some((a) => matches(a, hash)) ? hash : aside ? "" : nav?.tab || "home";
     links.forEach((a) => {
       const on = matches(a, current);
       a.classList.toggle("active", on);
@@ -264,7 +266,8 @@ const Sidebar = (() => {
     let r = link?.getBoundingClientRect();
     // Lien rangé dans la liste qui défile : caché s'il sort de la zone visible.
     const scroller = link?.closest(".sb-scroll")?.getBoundingClientRect();
-    if (r && scroller && (r.bottom < scroller.top + 6 || r.top > scroller.bottom - 6)) r = null;
+    // (à moitié sorti aussi : la pastille, posée par-dessus, recouvrirait « Plus » ou le logo)
+    if (r && scroller && (r.top < scroller.top - 2 || r.bottom > scroller.bottom + 2)) r = null;
     const parts = [el, bump, glow];
     if (!r || !r.height) { parts.forEach((n) => (n.style.opacity = "0")); sb.dataset.liquid = "off"; return; }
     sb.dataset.liquid = "on";
@@ -353,7 +356,7 @@ const Sidebar = (() => {
       { icon: icons.clock, label: "Écoutes récentes", run: () => go("#/recent") },
       { icon: icons.sparkles, label: "Apparence", sub: "Couleur, formes, menu", run: () => go("#/appearance") },
       desktop ? { icon: icons.phone, label: "Sona sur l'iPhone", run: () => go("#/iphone") } : { icon: icons.download, label: "Installer Sona pour Windows", run: () => window.open(WINDOWS_PAGE, "_blank", "noopener") },
-      account?.is_admin && { icon: icons.pulse, label: "Santé de la lecture", run: () => go("#/health") },
+      isOwner() && { icon: icons.pulse, label: "Santé de la lecture", run: () => go("#/health") },
     ];
     actionSheet("Plus", items);
   }

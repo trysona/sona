@@ -398,15 +398,17 @@ async fn login(email: String, password: String) -> Result<AppleAccount, String> 
             break;
         }
         log_error(&format!("Anisette : {server} a échoué, identité oubliée, essai du serveur suivant"));
-        // L'anisette locale ne garde rien : l'identité enregistrée est celle d'un serveur, on la préserve.
-        if *server != LOCAL_ANISETTE {
-            forget_anisette_identity();
-        }
+        forget_anisette_identity();
     }
     if result.is_ok() {
         emit("signed-in", json!({ "email": email }));
     }
     if let Err(message) = &result {
+        if is_apple_block(&LAST_RAW_ERROR.lock().unwrap()) {
+            // Apple bloque ce PC : une pause évite de prolonger le blocage à force d'essayer.
+            set_apple_cooldown(&email, 30 * 60);
+            return Err(format!("{message} Sona attend 30 min avant de réessayer (insister prolonge le blocage). En attendant, « Enregistrer l'app » puis installe-la avec Sideloadly ou AltServer."));
+        }
         if message.contains("429") || message.contains("Too Many Requests") || message.starts_with("Apple limite les tentatives") {
             let seconds = 10 * 60;
             set_apple_cooldown(&email, seconds);
@@ -419,14 +421,9 @@ async fn login(email: String, password: String) -> Result<AppleAccount, String> 
     result
 }
 
-/// Anisette essayée dans l'ordre : les composants iCloud de ce PC, puis les serveurs de SideStore et de la communauté.
-const ANISETTE_SERVERS: [&str; 5] = [
-    LOCAL_ANISETTE,
-    "https://ani.stikstore.app",
-    "https://ani.sidestore.io",
-    "https://ani.sidestore.zip",
-    "https://ani.846969.xyz",
-];
+/// Anisette essayée dans l'ordre : le serveur par défaut d'isideload, puis les composants iCloud de ce PC. Deux
+/// essais au plus : chaque refus d'Apple rapproche le blocage.
+const ANISETTE_SERVERS: [&str; 2] = [isideload::anisette::remote_v3::DEFAULT_ANISETTE_V3_URL, LOCAL_ANISETTE];
 
 const LOCAL_ANISETTE: &str = "ce PC";
 
@@ -437,6 +434,13 @@ fn is_anisette_failure(message: &str) -> bool {
     let apple_503 = (lower.contains("grandslam") || lower.contains("gsa.apple.com"))
         && (lower.contains("503") || lower.contains("service temporarily unavailable"));
     apple_503 || ["anisette", "not provisioned", "-45061", "reprovision"].iter().any(|n| lower.contains(n))
+}
+
+/// Refus d'Apple qui vise ce PC ou ce réseau (pas le mot de passe) : insister l'aggrave.
+fn is_apple_block(message: &str) -> bool {
+    let lower = message.to_lowercase();
+    let grandslam_503 = (lower.contains("grandslam") || lower.contains("gsa.apple.com")) && lower.contains("503");
+    grandslam_503 || lower.contains("-80045") || lower.contains("-22411")
 }
 
 /// Oublie l'identité anisette gardée par isideload dans le coffre Windows (au mieux).
@@ -762,7 +766,7 @@ async fn sign_and_install(
     let result = async {
         // Par câble, ou en Wi-Fi si l'iPhone est débranché mais sur le même réseau.
         let provider = wifi::provider_for(&udid).await?;
-        let mut sideloader = SideloaderBuilder::<isideload::util::callbacks::MaxCertsCallbackBox>::new(session, email)
+        let mut sideloader = SideloaderBuilder::<isideload::util::callbacks::MaxCertsCallbackBox, isideload::util::callbacks::ExtensionsBehaviorCallbackBox>::new(session, email)
             .team_selection(TeamSelection::First)
             .max_certs_behavior(MaxCertsBehavior::Prompt(Box::new(own_certs_only)))
             .machine_name(LABEL.to_string())
@@ -789,6 +793,8 @@ async fn sign_and_install(
                     let id = id_for_cb.clone();
                     async move { progress(&id, "signing", (p / 0.5).min(0.95)) }
                 }),
+                None, // fichier d'appairage et identifiant : seulement pour installer AltStore
+                None,
             )
             .await
             .map_err(short_error)?;
@@ -869,6 +875,14 @@ mod anisette_fallback_tests {
         assert!(is_anisette_failure(apple_503));
         assert!(is_anisette_failure("Failed to get anisette headers → not provisioned for this server (-45061); reprovision required"));
         assert!(is_anisette_failure("reqwest::Error { kind: Status(522) } https://ani.stikstore.app/v3/get_headers anisette"));
+    }
+
+    #[test]
+    fn apple_blocks_are_recognised_and_paused() {
+        assert!(is_apple_block("AuthWithMessage(-80045, \"This action cannot be completed at this time.\")"));
+        assert!(is_apple_block("Status(503) url: https://gsa.apple.com/grandslam/GsService2"));
+        assert!(!is_apple_block("-22406 incorrect password"));
+        assert!(!is_apple_block("522 https://ani.stikstore.app"));
     }
 
     #[test]

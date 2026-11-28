@@ -21,7 +21,7 @@ class SanctionedError(Exception):
         self.body = {"error": "sanctioned", "status": status, "reason": reason, "until": until}
 
 
-PENDING_MESSAGE = "Compte en attente de validation par un administrateur."
+PENDING_MESSAGE = "Ce type de compte n'est plus ouvert aux nouveaux venus : crée un compte Sona."
 REJECTED_MESSAGE = "Accès à l'app refusé par un administrateur."
 
 
@@ -51,7 +51,24 @@ async def identify(deps: ApiDeps = Depends(get_deps), token: str = Depends(beare
     account = await deps.repo.account_for_session(token)
     if account is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Session expirée ou invalide : reconnecte-toi.")
-    return replace(deps, account=account, is_admin=account.is_admin, user_id_override=account.user_id)
+    is_admin = account.is_admin
+    if account.supabase_uid and deps.accounts is not None:
+        is_admin = await _device_session_standing(deps, account.supabase_uid, is_admin)
+    return replace(deps, account=account, is_admin=is_admin, user_id_override=account.user_id)
+
+
+async def _device_session_standing(deps: ApiDeps, uid: str, is_admin: bool) -> bool:
+    """Session d'appareil (TV, casque) d'un compte Sona : sanctions et rôle s'appliquent comme avec le jeton
+    Supabase, sinon un compte banni continuait d'écouter. Renvoie le droit d'admin."""
+    try:
+        who = await deps.accounts.standing(uid)
+    except sa.Unavailable:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Service de comptes indisponible.") from None
+    if who is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Session expirée ou invalide : reconnecte-toi.")
+    if who.get("status") in ("banned", "suspended"):
+        raise SanctionedError(who["status"], None, None)
+    return who["role"] == "admin" if "role" in who else is_admin
 
 
 async def _identify_supabase(deps: ApiDeps, token: str) -> ApiDeps:
@@ -96,7 +113,22 @@ async def require_token(deps: ApiDeps = Depends(identify)) -> ApiDeps:
     return deps
 
 
+def is_owner(deps: ApiDeps) -> bool:
+    """Le propriétaire de Sona : un administrateur qui est le compte `SONA_OWNER_UID` (ou l'ancien jeton du
+    serveur). Sans ce réglage, tout administrateur."""
+    if not deps.is_admin:
+        return False
+    owner = deps.settings.owner_uid
+    return not owner or deps.account is None or (deps.account.supabase_uid or "").lower() == owner
+
+
 async def require_admin(deps: ApiDeps = Depends(require_token)) -> ApiDeps:
     if not deps.is_admin:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Réservé aux administrateurs.")
+    return deps
+
+
+async def require_owner(deps: ApiDeps = Depends(require_admin)) -> ApiDeps:
+    if not is_owner(deps):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Réservé au propriétaire de Sona.")
     return deps

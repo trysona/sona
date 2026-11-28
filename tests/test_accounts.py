@@ -102,7 +102,7 @@ def test_new_user_waits_for_admin_approval(client):
 
     blocked = client.get("/settings", headers=guest)
     assert blocked.status_code == 403
-    assert "attente" in blocked.json()["detail"]
+    assert "compte Sona" in blocked.json()["detail"]
     assert client.get("/auth/me", headers=guest).json()["status"] == "pending"
 
     # Un non-admin ne voit pas le panel.

@@ -131,6 +131,35 @@ def test_waiting_device_is_woken_by_a_command():
     assert elapsed < 1 and [c["action"] for c in result["commands"]] == ["pause"]
 
 
+def test_waiting_device_stays_reachable_for_the_whole_wait(monkeypatch):
+    """Les apps attendent 25 s, plus que les 15 s de « connecté » : l'appareil ne doit pas disparaître entre-temps."""
+    import asyncio
+
+    now = [1000.0]
+    monkeypatch.setattr(connect, "_now", lambda: now[0])
+
+    async def scenario():
+        connect.sync(1, "iphone-123", "iPhone", "iphone", {"queue": [TRACK], "paused": False})
+        waiting = asyncio.create_task(connect.sync_wait(1, "web-abcdef", "Chrome", "web", None, wait=10))
+        await asyncio.sleep(0.05)
+        now[0] += 20
+        assert connect.command(1, "iphone-123", "web-abcdef", "pause")
+        await waiting
+        now[0] += 20  # plus aucune nouvelle : cette fois il est bien parti
+        assert not connect.command(1, "iphone-123", "web-abcdef", "pause")
+
+    asyncio.run(scenario())
+
+
+def test_transfer_with_nothing_to_play_says_so(client):
+    me = login(client, "alice")
+    sync(client, me, "iphone-123", "iPhone", "iphone")
+    sync(client, me, "web-abcdef", "Chrome")
+    got = client.post("/connect/command", headers=me,
+                      json={"device_id": "iphone-123", "target": "web-abcdef", "action": "transfer"})
+    assert got.status_code == 409 and "Lance" in got.json()["detail"]
+
+
 def test_waiting_device_is_woken_when_playback_moves():
     import asyncio
 

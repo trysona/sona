@@ -36,11 +36,11 @@ Open to everyone: create an account with e-mail, Google, Discord or GitHub (or a
 
 ### 🎛️ Mix
 - AutoMix: beat-matched transitions using tempo, bar and key analysis
-- Radios, daily mix, DJ radio with a DJ voice
+- Radios and daily mix
 
 ### 🤝 Share
 - Sona Connect: control playback on any of your devices
-- Listen together, friends and Blend, collaborative playlists, weekly charts
+- Listen together, friends and Blend, collaborative playlists
 
 ### ✨ Discover
 - Upcoming releases with a countdown, listening stats, a map of your plays, story-style recaps

@@ -17,6 +17,21 @@ def setup_logging(level: int = logging.INFO) -> None:
     )
     # Bruit connu, peu utile en usage normal.
     logging.getLogger("httpx").setLevel(logging.WARNING)
+    access = logging.getLogger("uvicorn.access")
+    if not any(isinstance(f, HideTokens) for f in access.filters):
+        access.addFilter(HideTokens())
+
+
+_TOKEN_IN_URL = re.compile(r"([?&]token=)[^&\s]+")
+
+
+class HideTokens(logging.Filter):
+    """Le lecteur web passe son jeton dans l'adresse (`/stream/…?token=`) : jamais écrit dans les journaux."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple):
+            record.args = tuple(_TOKEN_IN_URL.sub(r"\1***", a) if isinstance(a, str) else a for a in record.args)
+        return True
 
 
 # Avertissements yt-dlp qui expliquent un mur « Sign in to confirm you're not

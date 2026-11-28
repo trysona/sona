@@ -14,7 +14,7 @@ const write = (rel, svg) => {
 const actions = {
   playpause: "play", nowplaying: "note", next: "next", previous: "previous", like: "heart",
   shuffle: "shuffle", repeat: "repeat", volumeup: "volumeUp", volumedown: "volumeDown", dial: "speaker", seekdial: "next",
-  addtoplaylist: "playlistAdd", djradio: "radio", lyricsoverlay: "quote",
+  addtoplaylist: "playlistAdd", 
   playlist: "playlist", share: "share", volumepreset: "presets",
 };
 for (const [id, glyph] of Object.entries(actions)) {

@@ -99,10 +99,7 @@ struct SoundSettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var gains: [Float] = AudioEffects.eqGains
     @AppStorage("encre.autoResume") private var autoResume = true
-    @AppStorage("encre.visualizer") private var visualizer = false
     @AppStorage("encre.reactiveBackground") private var reactiveBackground = false
-    @AppStorage("encre.djVoice") private var djVoice = false
-    @AppStorage("encre.djVoiceName") private var djVoiceName = "remy"
     @AppStorage("encre.lyricsActivity") private var lyricsActivity = false
 
     var body: some View {
@@ -206,33 +203,6 @@ struct SoundSettingsSheet: View {
                 }
 
                 Section {
-                    Toggle(isOn: $djVoice) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Label("DJ vocal", systemImage: "mic.and.signal.meter")
-                            Text("Une voix annonce chaque titre, comme à la radio.")
-                                .font(Typo.caption).foregroundStyle(Tone.secondary)
-                        }
-                    }
-                    if djVoice {
-                        Picker("Voix", selection: $djVoiceName) {
-                            ForEach(DJVoice.voices, id: \.id) { voice in
-                                Text(voice.name).tag(voice.id)
-                            }
-                        }
-                        Button {
-                            DJVoice.shared.preview()
-                        } label: {
-                            Label("Essayer la voix", systemImage: "play.circle")
-                        }
-                        .disabled(player.current == nil)
-                    }
-                    Toggle(isOn: $visualizer) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Label("Visualiseur", systemImage: "waveform")
-                            Text("Des barres qui dansent sur le son, sous la pochette.")
-                                .font(Typo.caption).foregroundStyle(Tone.secondary)
-                        }
-                    }
                     Toggle(isOn: $reactiveBackground) {
                         VStack(alignment: .leading, spacing: 2) {
                             Label("Fond qui bat au son", systemImage: "circle.hexagongrid")
@@ -251,16 +221,9 @@ struct SoundSettingsSheet: View {
                     Text("Ambiance")
                 }
             }
-            .onChange(of: visualizer) { _, on in
-                AudioEffects.visualizerOn = on
-                player.audioEffectsChanged()
-            }
             .onChange(of: reactiveBackground) { _, on in
                 AudioEffects.reactiveBackground = on
                 player.audioEffectsChanged()
-            }
-            .onChange(of: djVoice) { _, on in
-                if !on { DJVoice.shared.stop() }
             }
             .onChange(of: lyricsActivity) { _, _ in
                 LyricsActivity.shared.settingChanged()

@@ -67,9 +67,6 @@ img { display: block; }
 .empty .big .icon { color: var(--text-3); }
 .mood-emoji .icon, .huge .icon, .achv span .icon { margin-inline: auto; display: block; }
 .emoji-row button { display: grid; place-items: center; }
-.medal { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; font-size: 12px; font-weight: 800; color: #1c1c1e; background: #ffd60a; }
-.medal.m2 { background: #d1d1d6; }
-.medal.m3 { background: #d79a62; }
 ::selection { background: var(--accent-soft); }
 
 /* Barres de défilement : une fine pilule qui flotte, loin des coins arrondis du
@@ -398,7 +395,7 @@ input[type="range"].slider::-moz-range-thumb { width: 12px; height: 12px; border
 /* ── Lecteur plein écran ──────────────────────────────────────────────── */
 
 .np {
-  position: fixed; inset: 0; z-index: 30; color: #fff; display: grid; grid-template-rows: auto 1fr;
+  position: fixed; inset: 0; z-index: 40; color: #fff; display: grid; grid-template-rows: auto 1fr;
   opacity: 0; pointer-events: none; transform: translateY(24px) scale(.985);
   transition: opacity .4s var(--ease), transform .5s var(--ease);
   background: #111;
@@ -749,17 +746,14 @@ html[data-lyrblur="off"] .lyrics p, html[data-lyrblur="off"] .lyrics p.near { fi
 .field.small { width: auto; height: 34px; margin: 0; font-size: 14px; padding: 0 10px; }
 
 /* Visualiseur plein écran */
-.viz { position: fixed; inset: 0; z-index: 80; background: #000; overflow: hidden; animation: viz-in .3s var(--ease); }
 .viz-bg { position: absolute; inset: -60px; }
 .viz-bg img { width: 100%; height: 100%; object-fit: cover; filter: blur(60px) saturate(1.5) brightness(.45); transform: scale(1.1); }
-.viz canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .viz-meta { position: absolute; left: 50%; top: 14%; transform: translateX(-50%); display: flex; align-items: center; gap: 18px; color: #fff; max-width: 80vw; }
 .viz-art { width: 110px; height: 110px; border-radius: 14px; object-fit: cover; box-shadow: 0 18px 50px rgba(0,0,0,.5); }
 .viz-meta div { min-width: 0; }
 .viz-meta b { display: block; font-size: 30px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 2px 12px rgba(0,0,0,.5); }
 .viz-meta span { display: block; font-size: 19px; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .viz-tools { position: absolute; top: 18px; right: 18px; display: flex; gap: 10px; opacity: .25; transition: opacity .2s; }
-.viz:hover .viz-tools { opacity: 1; }
 .viz-tools button { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 20px; background: rgba(255,255,255,.14); }
 @keyframes viz-in { from { opacity: 0; } to { opacity: 1; } }
 
@@ -818,6 +812,8 @@ html[data-lyrblur="off"] .lyrics p, html[data-lyrblur="off"] .lyrics p.near { fi
 .share-row b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .share-row span { font-size: 13px; color: var(--text-2); }
 .hidden { display: none !important; }
+/* L'attribut `hidden` cache toujours, même un élément auquel une règle donne un `display`. */
+[hidden] { display: none !important; }
 .btn.small { height: 30px; padding: 0 14px; font-size: 13px; }
 .btn.big { height: 52px; padding: 0 30px; font-size: 17px; border-radius: 999px; }
 .btn.wide { width: 100%; justify-content: center; margin-top: 26px; }
@@ -1042,22 +1038,9 @@ span.chip { cursor: default; }
 .rt .s { font-size: 13px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rv { text-align: right; font-size: 13px; font-weight: 600; display: flex; flex-direction: column; }
 .rv small { color: var(--text-3); font-weight: 500; }
-.challenges { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
-.challenge { padding: 14px; border-radius: 16px; background: var(--fill); }
-.challenge.done { background: rgba(48, 209, 88, .14); }
-.challenge .ct { font-weight: 600; font-size: 14.5px; display: flex; gap: 6px; align-items: center; }
-.challenge.done .icon { color: #30d158; }
-.challenge .cv { font-size: 12.5px; color: var(--text-2); margin-top: 6px; }
 .meter { height: 6px; border-radius: 6px; background: var(--fill-strong); overflow: hidden; margin-top: 10px; }
 .meter i { display: block; height: 100%; background: var(--text); border-radius: 6px; transition: width .2s linear; }
-.challenge.done .meter i { background: #30d158; }
 .meter.big { height: 8px; margin: 10px 0 18px; }
-.badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 14px; }
-.achv { padding: 12px; border-radius: 16px; background: var(--fill); display: flex; flex-direction: column; gap: 2px; opacity: .55; }
-.achv.earned { opacity: 1; background: linear-gradient(135deg, rgba(255, 214, 10, .2), rgba(255, 159, 10, .08)); }
-.achv span { font-size: 26px; }
-.achv b { font-size: 14px; }
-.achv small { font-size: 12px; color: var(--text-2); }
 .live-card { padding: 16px; border-radius: 18px; background: var(--fill); max-width: 720px; display: flex; flex-direction: column; gap: 10px; }
 .lc-now { display: flex; gap: 12px; align-items: center; }
 .lc-now img { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; }
@@ -1154,7 +1137,6 @@ span.chip { cursor: default; }
 .bt-feedback.ok { color: #30d158; } .bt-feedback.ko { color: #ff453a; }
 .bt-end { text-align: center; }
 .bt-end .section { text-align: left; }
-.board { display: flex; flex-direction: column; max-width: 560px; }
 .board-row { display: grid; grid-template-columns: 30px 36px 1fr auto; gap: 12px; align-items: center; padding: 8px 6px; border-radius: 12px; }
 .board-row.me { background: var(--fill); }
 .board-row .avatar { width: 36px; height: 36px; font-size: 14px; }
@@ -1529,14 +1511,6 @@ span.chip { cursor: default; }
 .mood .fab { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; background: #fff; color: #000; }
 .mood .fab svg { width: 18px; height: 18px; }
 /* Défis entre amis */
-.champion { margin: 0 0 12px; padding: 10px 14px; border-radius: 14px; background: linear-gradient(120deg, rgba(242,183,5,.25), rgba(242,113,28,.12)); font-weight: 600; }
-.boards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
-.board { padding: 14px; border-radius: 16px; background: var(--fill); }
-.board .bt { font-weight: 700; margin-bottom: 8px; }
-.brow { display: grid; grid-template-columns: 28px 26px 1fr auto; align-items: center; gap: 8px; padding: 5px 0; font-size: 14px; }
-.brow.me .bn { color: var(--accent); font-weight: 700; }
-.brow .bm { text-align: center; }
-.brow small { color: var(--text-2); font-weight: 500; }
 .bav { width: 26px; height: 26px; border-radius: 50%; font-size: 11px; display: grid; place-items: center; background: var(--fill-strong); object-fit: cover; }
 .bn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -1696,6 +1670,8 @@ input[type="range"].slider::-webkit-slider-thumb { background: var(--accent); }
 /* En-tête d'album, de playlist, d'artiste */
 .hero { grid-template-columns: 280px 1fr; gap: var(--s-8); padding: var(--s-4) 0 var(--s-7); align-items: end; }
 .hero-art { width: 280px; height: 280px; border-radius: var(--r-card); box-shadow: none; }
+/* Un titre interminable ne repousse pas toute la page : trois lignes, puis « … ». */
+.hero h1 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
 .hero .kind { letter-spacing: 0.1em; color: var(--text-2); }
 .hero h1 { font-size: 48px; font-weight: 700; letter-spacing: -0.04em; margin: var(--s-3) 0 var(--s-2); }
 .hero .by { font-size: 20px; color: var(--text-2); font-weight: 500; }
@@ -1773,7 +1749,8 @@ input[type="range"].slider::-webkit-slider-thumb { background: var(--accent); }
   .radio-card .play-fab { display: none; }
   .hero { grid-template-columns: 1fr; gap: var(--s-5); }
   .hero-art { width: min(260px, 72vw); height: auto; aspect-ratio: 1; }
-  .hero h1 { font-size: 34px; }
+  .hero h1 { font-size: 28px; }
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-5) var(--s-4); }
   .login-card { padding: var(--s-7) var(--s-5) var(--s-6); }
   .tabbar button.active { background: var(--accent-soft); color: var(--accent); box-shadow: none; }
 }
@@ -1883,11 +1860,24 @@ html[data-tint="off"] .hero-glow { display: none; }
 .look-sw span { font-size: 12.5px; color: var(--text-2); }
 .look-sw.on::before { box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--text); }
 .look-sw.on span { color: var(--text); }
+@media (max-width: 520px) {
+  .look-accents { display: grid; grid-template-columns: repeat(3, 1fr); }
+}
+
+/* Aperçu : un titre factice qui suit la couleur et les formes. */
+.look-preview { display: flex; align-items: center; gap: 14px; max-width: 420px; margin: var(--s-5) 0; padding: 12px; background: var(--fill); border-radius: var(--r-card); }
+.look-preview i { width: 56px; height: 56px; flex: none; border-radius: var(--r-art); background: linear-gradient(135deg, var(--accent), #2c2c34); }
+.look-preview span { display: grid; flex: 1; min-width: 0; }
+.look-preview small { color: var(--text-2); }
+.look-preview em { display: grid; place-items: center; width: 44px; height: 44px; flex: none; border-radius: var(--r-ctl); background: var(--accent); color: var(--on-accent); }
+.look-preview em svg { width: 18px; height: 18px; fill: currentColor; }
 
 .look-seg { cursor: default; }
 .look-seg .chips { margin: 0; flex: none; }
 @media (max-width: 760px) {
   .look-seg { flex-wrap: wrap; }
+  /* Le menu latéral n'existe pas sur téléphone. */
+  .page .look-wide-only { display: none; }
 }
 
 /* Décalage global des paroles (Apparence > Paroles) */
@@ -2916,3 +2906,11 @@ select.field option { background: var(--bg-elevated); color: var(--text); }
 .song-card b, .song-card span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13.5px; }
 .song-card span { color: var(--text-2); }
 @media (max-width: 760px) { .home-actions .btn { padding: 8px 14px; font-size: 13px; } }
+
+/* Meilleur résultat : la carte commence en haut (étirée, son contenu tombait sous le lecteur), et la petite liste
+   d'à côté laisse la place aux titres (ni colonne de numéro ni colonne d'album, vides ici). */
+.top-card { align-self: start; }
+@media (min-width: 761px) {
+  .top-result .tr { grid-template-columns: 44px minmax(0, 1fr) 60px auto; }
+  .top-result .tr > :is(.n, .al) { display: none; }
+}

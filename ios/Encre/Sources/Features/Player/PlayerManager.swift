@@ -487,12 +487,21 @@ final class PlayerManager: ObservableObject {
             if let first = tracks.first { play(first, context: tracks) }
             return
         }
-        let fresh = tracks.filter { $0.id != current?.id }
-        context.removeAll { track in fresh.contains { $0.id == track.id } && track.id != current?.id }
+        let fresh = PlayerManager.withoutDuplicates(tracks, excluding: Set([current?.id].compactMap { $0 }))
+        takeOut(fresh)
         let at = (context.firstIndex { $0.id == current?.id } ?? index) + 1
         context.insert(contentsOf: fresh, at: at)
         if let start = autoplayStart { autoplayStart = start + fresh.count }
         nextPrepared = false
+    }
+
+    /// Retire ces titres de la liste avant de les replacer : un titre n'y figure jamais deux fois.
+    private func takeOut(_ tracks: [Track]) {
+        let ids = Set(tracks.map(\.id))
+        if let start = autoplayStart {
+            autoplayStart = start - context.prefix(start).filter { ids.contains($0.id) }.count
+        }
+        context.removeAll { ids.contains($0.id) }
     }
 
     /// À la fin de « Poursuivre la lecture » (avant les titres ajoutés par
@@ -502,7 +511,9 @@ final class PlayerManager: ObservableObject {
             if let first = tracks.first { play(first, context: tracks) }
             return
         }
-        let fresh = tracks.filter { track in track.id != current?.id && !upNext.contains { $0.id == track.id } }
+        let queued = Set(upNext.map(\.id) + [current?.id].compactMap { $0 })
+        let fresh = PlayerManager.withoutDuplicates(tracks, excluding: queued)
+        takeOut(fresh)
         let at = min(autoplayStart ?? context.count, context.count)
         context.insert(contentsOf: fresh, at: at)
         if autoplayStart != nil { autoplayStart = at + fresh.count }
@@ -576,12 +587,18 @@ final class PlayerManager: ObservableObject {
         sleepTimer = nil
         sleepDeadline = nil
         guard let player else { return }
+        let base = gain(for: current)
         for step in stride(from: 10, through: 0, by: -1) {
-            player.volume = Float(step) / 10
+            // Minuteur annulé ou changé pendant le fondu : le son revient, la musique continue.
+            if Task.isCancelled {
+                player.volume = base
+                return
+            }
+            player.volume = base * Float(step) / 10
             try? await Task.sleep(for: .milliseconds(500))
         }
         player.pause()
-        player.volume = 1
+        player.volume = base
     }
 
     // MARK: File d'attente (façon Musique)
@@ -629,7 +646,9 @@ final class PlayerManager: ObservableObject {
         if shuffleEnabled {
             if let original = unshuffledContext {
                 let known = Set(original.map(\.id))
-                context = original + context.filter { !known.contains($0.id) }
+                let kept = Set(context.map(\.id))
+                // Un titre retiré de la file pendant l'aléatoire ne revient pas.
+                context = original.filter { kept.contains($0.id) } + context.filter { !known.contains($0.id) }
             }
             unshuffledContext = nil
             shuffleEnabled = false
@@ -814,11 +833,13 @@ final class PlayerManager: ObservableObject {
               let type = AVAudioSession.InterruptionType(rawValue: typeValue) else { return }
         switch type {
         case .began:
-            player?.pause()
+            resumeAfterInterruption = isPlaying
+            pause()  // coupe aussi le titre qui entre pendant un AutoMix
             isPlaying = false
         case .ended:
             guard let optionsValue = info[AVAudioSessionInterruptionOptionKey] as? UInt else { return }
-            if AVAudioSession.InterruptionOptions(rawValue: optionsValue).contains(.shouldResume) {
+            // En pause avant l'appel : on le reste, même si iOS propose de reprendre.
+            if resumeAfterInterruption, AVAudioSession.InterruptionOptions(rawValue: optionsValue).contains(.shouldResume) {
                 playAfterPause()
                 isPlaying = true
             }
@@ -834,7 +855,7 @@ final class PlayerManager: ObservableObject {
         switch reason {
         case .oldDeviceUnavailable:
             if isPlaying { pausedByRouteAt = Date() }
-            player?.pause()
+            pause()  // sinon, pendant un AutoMix, le titre qui entre partait sur le haut-parleur
             isPlaying = false
         case .newDeviceAvailable:
             // Écouteurs remis : reprise si c'est eux qui avaient coupé la lecture.
@@ -1000,30 +1021,6 @@ final class PlayerManager: ObservableObject {
         start(first, context: tracks)
     }
 
-    /// Radio DJ à partir d'un titre : lui d'abord, puis une suite sans fin
-    /// pensée pour l'AutoMix (activé au passage). Chaque rechargement repart
-    /// du dernier titre en file : la chaîne de tempos continue.
-    func playDJRadio(from seed: Track) async throws {
-        let batch = try await APIClient.shared.djRadio(seed: seed, exclude: [seed.sourceId])
-        guard !batch.isEmpty else { throw StationError.empty }
-        if !crossfadeEnabled { toggleCrossfade() }
-        let alreadyPlaying = current?.id == seed.id && player != nil
-        endStation()
-        resetQueueState(name: "Radio DJ · \(seed.title)")
-        refill = { [weak self] in
-            guard let self else { return [] }
-            let tail = self.context.last ?? seed
-            return try await APIClient.shared.djRadio(seed: tail, exclude: self.context.suffix(80).map(\.sourceId))
-        }
-        let tracks = PlayerManager.withoutDuplicates([seed] + batch, excluding: [])
-        if alreadyPlaying {
-            // Le titre joue déjà : on garde la lecture, seule la suite change.
-            context = tracks
-        } else {
-            start(seed, context: tracks)
-        }
-    }
-
     private func endStation() {
         refill = nil
         refillTask?.cancel()
@@ -1042,7 +1039,8 @@ final class PlayerManager: ObservableObject {
         teardown()
         if track.id != current?.id { restoredPosition = nil }
         current = track
-        context = playbackContext.isEmpty ? [track] : playbackContext
+        // Le même titre deux fois (playlist) ferait revenir « suivant » en arrière.
+        context = playbackContext.isEmpty ? [track] : PlayerManager.withoutDuplicates(playbackContext, excluding: [])
         if refill != nil && upNext.count < 3 {
             Task { await self.topUpStation() }
         } else if refill == nil && autoplayEnabled && upNext.count < 2 {
@@ -1190,7 +1188,6 @@ final class PlayerManager: ObservableObject {
             scrobbled = false
             nextPrepared = false
             updateNowPlayingInfo(for: track)
-            if !followsParty { DJVoice.shared.trackStarted(track) }
             presenceShared = true
             presenceStopTask?.cancel()
             Task { try? await APIClient.shared.nowPlaying(track) }
@@ -1263,6 +1260,8 @@ final class PlayerManager: ObservableObject {
                 @unknown default:
                     break
                 }
+                // Écran verrouillé : la barre s'arrête ou repart avec le son.
+                self.updateNowPlayingElapsedTime()
             }
         }
 
@@ -1409,7 +1408,12 @@ final class PlayerManager: ObservableObject {
     /// Repart au début du morceau en cours, ou passe au précédent s'il vient
     /// de démarrer — même règle que le prototype (Encre.dc.html : `prev`).
     func previous() {
-        guard positionSeconds <= 3, let current, let index = context.firstIndex(where: { $0.id == current.id }), index > 0 else {
+        if positionSeconds > 3 { seek(toFraction: 0) } else { previousTrack() }
+    }
+
+    /// Le titre d'avant, même bien entamé (glissement du mini-lecteur) ; le début de celui-ci s'il n'y en a pas.
+    func previousTrack() {
+        guard let current, let index = context.firstIndex(where: { $0.id == current.id }), index > 0 else {
             seek(toFraction: 0)
             return
         }
@@ -1926,7 +1930,7 @@ final class PlayerManager: ObservableObject {
     private func prepareItem(_ item: AVPlayerItem, mixControl wantsControl: Bool = false) -> MixControl? {
         applySpatial(item)
         let control = (wantsControl && crossfadeEnabled && mixEffects && !singAlong) ? MixControl() : nil
-        if (singAlong || AudioEffects.isEQActive || AudioEffects.visualizerOn || AudioEffects.reactiveBackground
+        if (singAlong || AudioEffects.isEQActive || AudioEffects.reactiveBackground
             || control != nil),
            item.audioMix == nil {
             Task { [weak item] in
@@ -1939,19 +1943,6 @@ final class PlayerManager: ObservableObject {
 
     private func applySpatial(_ item: AVPlayerItem) {
         item.allowedAudioSpatializationFormats = spatialAudio ? .monoStereoAndMultichannel : .multichannel
-    }
-
-    /// DJ vocal : le son baisse le temps de l'annonce, puis remonte.
-    func setDucked(_ ducked: Bool) {
-        guard let player, let current, !isMixing, !isFadingIn else { return }
-        let from = player.volume
-        let to = gain(for: current) * (ducked ? 0.3 : 1)
-        Task { [weak player] in
-            for step in 1...8 {
-                try? await Task.sleep(for: .milliseconds(40))
-                player?.volume = from + (to - from) * Float(step) / 8
-            }
-        }
     }
 
     /// Égaliseur modifié : le traitement se branche si besoin sur le titre en cours.
@@ -1972,6 +1963,21 @@ final class PlayerManager: ObservableObject {
     private var lastSessionSave = Date.distantPast
     /// Position où reprendre le titre restauré, au premier appui sur lecture.
     private var restoredPosition: Double?
+
+    /// Déconnexion : la musique s'arrête, et la file n'est pas reproposée au compte suivant.
+    func forgetAccount() {
+        teardown()
+        endStation()
+        resetQueueState(name: nil)
+        current = nil
+        context = []
+        restoredPosition = nil
+        isPlaying = false
+        isLoading = false
+        UserDefaults.standard.removeObject(forKey: Self.sessionKey)
+        clearHistory()
+        restoreNowPlayingInfo()
+    }
 
     /// Mémorise le titre, la position et la file (toutes les 10 s au plus).
     func saveSession(force: Bool = false) {
@@ -2018,6 +2024,8 @@ final class PlayerManager: ObservableObject {
     /// Écouteurs retirés pendant la lecture : quand ils reviennent (dans les
     /// 15 minutes), la lecture reprend toute seule.
     private var pausedByRouteAt: Date?
+    /// La musique jouait au début de l'interruption (appel, Siri…).
+    private var resumeAfterInterruption = false
 
     /// Position exacte, lue à la demande (paroles mot à mot, à chaque image) :
     /// `positionSeconds` n'est publiée que deux fois par seconde.
@@ -2122,7 +2130,8 @@ final class PlayerManager: ObservableObject {
         var info: [String: Any] = [
             MPMediaItemPropertyTitle: track.title,
             MPMediaItemPropertyArtist: track.artist,
-            MPNowPlayingInfoPropertyPlaybackRate: 1.0,
+            MPNowPlayingInfoPropertyElapsedPlaybackTime: positionSeconds,
+            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0,
         ]
         if let album = track.album { info[MPMediaItemPropertyAlbumTitle] = album }
         if let duration = track.durationSeconds { info[MPMediaItemPropertyPlaybackDuration] = Double(duration) }

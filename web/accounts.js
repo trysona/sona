@@ -292,7 +292,10 @@
   };
 
   const passkeys = {
-    supported: () => !!window.PublicKeyCredential && !!navigator.credentials?.create,
+    // La page doit être en https sur le domaine de la clé : jamais le cas de l'app Windows (app://sona).
+    supported: () => !desktop && !!window.PublicKeyCredential && !!navigator.credentials?.create,
+    /** App Windows : la clé se crée sur le site, dans le navigateur. */
+    addOnSite: () => desktop.openExternal(`${SITE}?connexion#/settings/account`),
     async register(deviceName) {
       const start = await svc("/passkey/register/start", { method: "POST" });
       const pk = start.options.publicKey;
@@ -301,7 +304,11 @@
       (pk.excludeCredentials || []).forEach((c) => (c.id = b64.dec(c.id)));
       let cred;
       try { cred = await navigator.credentials.create({ publicKey: pk }); }
-      catch (e) { throw new Error(e?.name === "NotAllowedError" ? "Création annulée." : "Cet appareil n'a pas pu créer la clé d'accès."); }
+      catch (e) {
+        throw new Error(e?.name === "NotAllowedError" ? "Création annulée."
+          : e?.name === "InvalidStateError" ? "Cet appareil a déjà une clé d'accès pour ce compte."
+          : "Cet appareil n'a pas pu créer la clé d'accès.");
+      }
       await svc("/passkey/register/finish", { method: "POST", body: {
         challenge_id: start.challenge_id, device_name: deviceName || null,
         credential: {
@@ -432,7 +439,8 @@
       const rows = await unwrap(table("user_settings").update(patch).eq("user_id", auth.user().id).select());
       return rows[0];
     },
-    async sanctions() { return unwrap(table("sanctions").select("*").order("created_at", { ascending: false })); },
+    // Filtre explicite : les règles de la base laissent l'équipe lire les sanctions de tout le monde.
+    async sanctions() { return unwrap(table("sanctions").select("*").eq("user_id", auth.user().id).order("created_at", { ascending: false })); },
     async acknowledge(id) { await unwrap(table("sanctions").update({ acknowledged_at: new Date().toISOString() }).eq("id", id)); },
     async notifications(limit = 30) { return unwrap(table("notifications").select("*").order("created_at", { ascending: false }).limit(limit)); },
     async markRead(ids) {

@@ -408,7 +408,15 @@ final class ConnectManager: ObservableObject {
             )
             receivedAt = Date()
         }
-        try? await APIClient.shared.connectCommand(from: deviceId, to: device.id, action: "transfer")
+        do {
+            try await APIClient.shared.connectCommand(from: deviceId, to: device.id, action: "transfer")
+        } catch {
+            // Refusé : la musique continue ici, et on le dit.
+            session = nil
+            show(error.localizedDescription)
+            syncSoon()
+            return
+        }
         remoteStartUntil = Date().addingTimeInterval(3)
         PlayerManager.shared.pause()
         RemoteFlag.shared.update(remoteTarget != nil)
@@ -427,6 +435,18 @@ final class ConnectManager: ObservableObject {
             case "repeat": devices[i].repeatMode = (devices[i].repeatMode ?? "off") == "off" ? "one" : "off"
             default: break
             }
+        }
+        // Position et volume choisis : gardés à l'écran, le curseur ne revient pas en arrière.
+        if action == "seek", let position {
+            if var session, session.deviceId == target.id {
+                session.position = position
+                self.session = session
+            }
+            if let i = devices.firstIndex(where: { $0.id == target.id }) { devices[i].position = position }
+            receivedAt = Date()
+        }
+        if action == "volume", let volume, let i = devices.firstIndex(where: { $0.id == target.id }) {
+            devices[i].volume = volume
         }
         var action = action
         // « lecture » ou « pause » explicite (pas « bascule ») : plusieurs
@@ -450,9 +470,13 @@ final class ConnectManager: ObservableObject {
         }
         let command = action
         Task {
-            try? await APIClient.shared.connectCommand(
-                from: deviceId, to: target.id, action: command, position: position, volume: volume, index: index
-            )
+            do {
+                try await APIClient.shared.connectCommand(
+                    from: deviceId, to: target.id, action: command, position: position, volume: volume, index: index
+                )
+            } catch {
+                show("\(target.name) ne répond pas")
+            }
             syncSoon()
         }
     }
@@ -642,7 +666,10 @@ struct RemotePlayerView: View {
                             get: { volume ?? device.volume ?? 1 },
                             set: { volume = $0 }
                         ), in: 0...1) { editing in
-                            if !editing, let volume { connect.remote("volume", volume: volume) }
+                            if !editing, let chosen = volume {
+                                connect.remote("volume", volume: chosen)
+                                volume = nil  // ensuite, le volume réel de l'appareil
+                            }
                         }
                         .tint(.white)
                         Image(systemName: "speaker.wave.3.fill").font(.system(size: 12)).foregroundStyle(Tone.tertiary)
@@ -830,7 +857,7 @@ struct RemoteMiniPlayer: View {
                     Label("Sur \(device.name)", systemImage: connectDeviceSymbol(device.kind))
                         .font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.accentColor).lineLimit(1)
                 }
-                Spacer(minLength: 4)
+                .modifier(TrackSwipe(next: { connect.remote("next") }, previous: { connect.remote("previous") }))
                 Button {
                     connect.remote("toggle")
                 } label: {

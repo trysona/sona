@@ -159,9 +159,6 @@ data class Mix(
 )
 
 @Serializable
-data class DailyOut(val track: Track? = null, val reason: String = "")
-
-@Serializable
 data class LibraryItem(
     val kind: String = "",
     val source: String,

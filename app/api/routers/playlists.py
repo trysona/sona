@@ -14,7 +14,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api import limits
-from app.api.auth import require_token
+from app.api.auth import require_token, is_owner
 from app.api.routers import stream
 from app.api.schemas import (
     ImportFixIn,
@@ -34,7 +34,7 @@ from app.api.schemas import (
 from app.api.state import ApiDeps
 from app.db.repository import PLAYLIST_VISIBILITIES, Playlist
 from app.providers.base import TrackInfo
-from app.services import playlist_import
+from app.services import playlist_import, social
 from app.services.resolver import ResolutionError, source_from_url
 
 logger = logging.getLogger(__name__)
@@ -53,14 +53,14 @@ async def _owned(deps: ApiDeps, playlist_id: int) -> Playlist:
 
 async def _accessible(deps: ApiDeps, playlist_id: int, *, edit: bool = False) -> Playlist:
     """Playlist lisible (à soi, ou partagée par un ami), ou modifiable (à
-    soi, ou « à plusieurs ») quand `edit`."""
+    soi, ou « à plusieurs » d'un ami) quand `edit`."""
     playlist = await deps.repo.playlist_by_id(playlist_id)
     if playlist is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Playlist introuvable.")
     if playlist.user_id == deps.user_id:
         return playlist
     allowed = ("collaborative",) if edit else ("friends", "collaborative")
-    if playlist.visibility not in allowed:
+    if playlist.visibility not in allowed or playlist.user_id not in await social.playlist_owners(deps):
         # Même réponse qu'une playlist inexistante : rien ne fuit.
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Playlist introuvable.")
     return playlist
@@ -102,6 +102,9 @@ async def _detail(deps: ApiDeps, playlist_id: int) -> PlaylistDetailOut:
 @router.get("", response_model=list[PlaylistOut])
 async def list_playlists(deps: ApiDeps = Depends(require_token)) -> list[PlaylistOut]:
     playlists = await deps.repo.playlist_list(deps.user_id, include_collaborative=True)
+    if any(p.user_id != deps.user_id for p in playlists):  # « à plusieurs » : entre amis seulement
+        friends = await social.playlist_owners(deps)
+        playlists = [p for p in playlists if p.user_id == deps.user_id or p.user_id in friends]
     return [await _out(deps, p) for p in playlists]
 
 
@@ -184,7 +187,7 @@ async def fix_import_item(
 
 
 async def _fix_with_link(deps: ApiDeps, playlist: Playlist, item_id: int, url: str):
-    """Lien YouTube / SoundCloud collé pour un titre importé. Pour un admin,
+    """Lien YouTube / SoundCloud collé pour un titre importé. Pour le propriétaire,
     sur un titre du catalogue : le lien devient la source audio du titre
     (comme « Choisir la source » du diagnostic), pour tout le monde — la
     fiche, les paroles et la radio restent. Sinon : le titre du lien prend
@@ -193,7 +196,7 @@ async def _fix_with_link(deps: ApiDeps, playlist: Playlist, item_id: int, url: s
     if item is None:
         raise playlist_import.PlaylistImportError("Ce titre n'est pas dans le rapport d'import.")
     matched = item.matched
-    if deps.is_admin and matched is not None and matched.source not in ("youtube", "soundcloud"):
+    if is_owner(deps) and matched is not None and matched.source not in ("youtube", "soundcloud"):
         try:
             video_id = await source_from_url(url)
         except ResolutionError as exc:

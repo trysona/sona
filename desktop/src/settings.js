@@ -12,7 +12,7 @@ const DEFAULTS = {
   // continue, l'iPhone et la télécommande peuvent toujours piloter le PC.
   closeToTray: true,
   launchAtLogin: false,
-  // Télécommande sur le réseau local (téléphone qui scanne le QR code).
+  // Lien avec le plugin Stream Deck (sur ce PC seulement).
   remoteEnabled: true,
   remotePort: 7650,
   remoteKey: "",
@@ -24,9 +24,6 @@ const DEFAULTS = {
   maximized: false,
   miniBounds: null,
   trayHintShown: false,
-  // Paroles en surimpression sur le bureau (en bas ou en haut de l'écran).
-  lyricsOverlay: false,
-  overlayPosition: "bottom",
   // Discord : « Écoute Sona » sur le profil. Vide : l'application Discord de Sona.
   discordEnabled: true,
   discordClientId: "",
@@ -40,8 +37,6 @@ const DEFAULTS = {
   gameMode: true,
   // Mode vocal : Discord (ou autre) prend le micro → musique baissée.
   micWatch: true,
-  // « Sona, suivant » : commandes vocales (micro toujours à l'écoute : coupé par défaut).
-  voiceControl: false,
   // Fond d'écran de Windows = pochette floue du titre en cours.
   coverWallpaper: false,
   wallpaperOriginal: null,

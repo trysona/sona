@@ -3,6 +3,7 @@ d'écoute, routes internes, rattachement d'un ancien compte, scrobbling. Le serv
 
 from __future__ import annotations
 
+import dataclasses
 from pathlib import Path
 
 import pytest
@@ -100,6 +101,22 @@ def test_roles_come_from_the_accounts_service(client):
     assert client.get("/auth/me", headers=admin).json()["is_admin"] is True
     assert client.get("/auth/me", headers=user).json()["is_admin"] is False
     assert client.get("/admin/accounts", headers=user).status_code == 403
+
+
+def test_playback_tools_belong_to_the_owner_alone(client):
+    boss, other = person(client, "boss", "admin"), person(client, "second", "admin")
+    # Sans `SONA_OWNER_UID`, tout administrateur ; avec, seulement le propriétaire (et l'ancien jeton du serveur).
+    assert client.get("/admin/streaming", headers=other).status_code == 200
+    client.deps.settings = dataclasses.replace(client.deps.settings, owner_uid="uid-boss")
+    assert client.get("/auth/me", headers=boss).json()["is_owner"] is True
+    assert client.get("/auth/me", headers=other).json()["is_owner"] is False
+    assert client.get("/auth/me", headers=LEGACY).json()["is_owner"] is True
+    assert client.get("/admin/streaming", headers=boss).status_code == 200
+    assert client.get("/admin/streaming", headers=other).status_code == 403
+    assert client.post("/stream/deezer/1/wrong-version", headers=other).status_code == 403
+    assert client.post("/admin/diagnose/deezer/1/unreject", headers=other).status_code == 403
+    # Les autres droits d'administrateur ne bougent pas.
+    assert client.get("/admin/accounts", headers=other).status_code == 200
 
 
 # -- Plus de « tout le monde est ami » ---------------------------------------
@@ -412,3 +429,86 @@ def test_auth_config_gives_the_native_apps_only_public_values(client):
     got = client.get("/auth/config").json()
     assert got["supabase_url"] == "https://x.supabase.co" and got["supabase_anon_key"] == "anon-publique"
     assert SECRET not in str(got)
+
+
+# -- Sessions d'appareil (TV, casque) et reconnexion Last.fm ------------------
+
+
+def test_a_device_session_follows_the_sanctions_of_its_sona_account(client):
+    legacy = client.post("/auth/lastfm", json={"token": "vieux"}).json()
+    client.post(f"/admin/accounts/{legacy['account']['id']}/approve", headers=LEGACY)
+    me = person(client, "alice")
+    assert client.post("/auth/link-legacy", headers=me, json={"token": "vieux"}).status_code == 200
+    # La TV : autorisée depuis le compte Sona, elle reçoit une session sans jeton Supabase.
+    started = client.post("/auth/device/start", json={"name": "TV"}).json()
+    assert client.post("/auth/device/approve", headers=me, json={"user_code": started["user_code"]}).status_code == 200
+    tv = {"Authorization": f"Bearer {client.post('/auth/device/poll', json={'device_code': started['device_code']}).json()['session_token']}"}
+    assert client.get("/plays/recent", headers=tv).status_code == 200
+    client.fake.profile_data["uid-alice"]["status"] = "banned"
+    got = client.get("/plays/recent", headers=tv)
+    assert got.status_code == 403 and got.json()["error"] == "sanctioned"
+    client.fake.profile_data["uid-alice"]["status"] = "active"
+    client.fake.down = True
+    assert client.get("/plays/recent", headers=tv).status_code == 503
+    client.fake.down = False
+    del client.fake.profile_data["uid-alice"]  # compte supprimé
+    assert client.get("/plays/recent", headers=tv).status_code == 401
+    # Et Last.fm ne rouvre pas un compte passé aux comptes Sona.
+    assert client.post("/auth/lastfm", json={"token": "vieux"}).status_code == 403
+
+
+def test_guests_cannot_hand_out_device_sessions_or_adopt_accounts(client):
+    import base64
+    import json
+
+    claims = base64.urlsafe_b64encode(json.dumps({"is_anonymous": True}).encode()).decode().rstrip("=")
+    token = f"head.{claims}.sig"
+    client.fake.add_user(token, "uid-invite", "invite")
+    guest = {"Authorization": f"Bearer {token}"}
+    started = client.post("/auth/device/start", json={"name": "TV"}).json()
+    assert client.post("/auth/device/approve", headers=guest, json={"user_code": started["user_code"]}).status_code == 403
+    assert client.post("/auth/link-legacy", headers=guest, json={"token": "vieux"}).status_code == 403
+
+
+def test_a_sona_account_uses_the_lastfm_name_linked_in_the_accounts_service(client):
+    alice = person(client, "alice")
+    me = client.get("/auth/me", headers=alice).json()
+    assert me["username"] == "Alice" and me["sona"] is True  # jamais le nom interne « sb:… »
+    live = client.get("/stats/live", headers=alice).json()["lastfm"]
+    assert live == {**live, "connected": False, "username": None}
+    assert client.get("/stats/import/lastfm", headers=alice).json()["configured"] is False
+    assert client.post("/stats/import/lastfm", headers=alice).status_code == 400
+    assert client.post("/library/lastfm-loved/import", headers=alice).status_code == 400
+    client.fake.lastfm["uid-alice"] = {"username": "alice_lfm", "scrobbling": False}
+    live = client.get("/stats/live", headers=alice).json()["lastfm"]
+    assert (live["connected"], live["enabled"], live["username"]) == (True, False, "alice_lfm")
+    assert client.get("/stats/import/lastfm", headers=alice).json()["configured"] is True
+
+
+def test_a_kicked_moderator_loses_every_power():
+    party.reset()
+    room = party.create(1, "Hôte", None)
+    room.access = "link"
+    party.join(room.code, 2, "Modo", None)
+    party.join(room.code, 3, "Autre", None)
+    party.set_moderator(room, 1, 2, True)
+    party.kick(room, 1, 2)
+    for attempt in (lambda: party.create_invite(room, 2), lambda: party.kick(room, 2, 3), lambda: party.delete_message(room, 2, 1)):
+        with pytest.raises(party.PartyError):
+            attempt()
+    party.join(room.code, 2, "Modo", None)
+    assert party.role_of(room, 2) == "listener"
+
+
+def test_hiding_or_deleting_a_playlist_kills_its_public_links(client):
+    alice = person(client, "alice")
+    for ending in ("hide", "delete"):
+        pid = client.post("/me/playlists", headers=alice, json={"name": ending, "tracks": [TRACK]}).json()["id"]
+        link = client.post("/me/shares", headers=alice, json={"kind": "playlist", "id": str(pid)}).json()
+        assert client.get(f"/s/{link['token']}").status_code == 200
+        if ending == "hide":
+            got = client.post(f"/internal/content/playlist/{pid}/hide", headers=INTERNAL, json={"owner": "uid-alice"})
+            assert got.status_code == 200
+        else:
+            assert client.delete(f"/me/playlists/{pid}", headers=alice).status_code == 204
+        assert client.get(f"/s/{link['token']}").status_code != 200

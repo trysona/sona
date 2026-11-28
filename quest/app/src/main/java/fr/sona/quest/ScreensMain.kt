@@ -254,7 +254,6 @@ private fun greeting(): String {
 
 @Composable
 fun HomeScreen() {
-    val daily by load("daily") { Hub.api.daily() }
     val mixes by load("mixes") { Hub.api.mixes() }
     val radios by load("radios") { Hub.api.radios() }
     val session by Hub.session.collectAsState()
@@ -276,28 +275,6 @@ fun HomeScreen() {
                         SonaText("${s.track.artist} · sur ${s.deviceName}", 14.sp, tone = 1, maxLines = 1)
                     }
                     PillButton("Écouter ici", { Hub.remote(me, "transfer") }, icon = Icons.Filled.Cast)
-                }
-            }
-        }
-
-        item {
-            Loaded(daily) { d ->
-                val t = d.track
-                if (t != null) {
-                    Row(
-                        Modifier.padding(top = 14.dp).fillMaxWidth().glass().reveal(2).padding(18.dp),
-                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp),
-                    ) {
-                        Cover(t.coverUrl, Modifier.size(130.dp))
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            SonaText("Titre du jour", 13.sp, FontWeight.Bold, tone = 3)
-                            SonaText(t.title, 26.sp, FontWeight.Bold, maxLines = 2, title = true)
-                            SonaText(t.artist, 16.sp, tone = 1, maxLines = 1)
-                            if (d.reason.isNotBlank()) SonaText(d.reason, 13.sp, tone = 2, maxLines = 2)
-                            Spacer(Modifier.height(8.dp))
-                            PillButton("Lecture", { Hub.playQueue(listOf(t), 0, "Titre du jour") }, icon = Icons.Filled.PlayArrow)
-                        }
-                    }
                 }
             }
         }

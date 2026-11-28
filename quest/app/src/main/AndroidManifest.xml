@@ -7,7 +7,6 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Visualiseur : analyse du son que Sona joue lui-même (jamais le micro). -->
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Meta Horizon OS : continuer à jouer quand un jeu VR passe devant. -->
     <uses-permission android:name="com.oculus.permission.PLAY_AUDIO_BACKGROUND" />
     <uses-permission android:name="horizonos.permission.PLAY_AUDIO_BACKGROUND" />

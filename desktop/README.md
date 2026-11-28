@@ -15,14 +15,8 @@ ce qu'un navigateur ne sait pas faire.
   apparaît tout seul (dès que Sona pour Windows s'ouvre avec le compte) et
   reste enregistré, même éteint ; on peut le renommer ou l'oublier. Un
   appui dessus et le téléphone le pilote — via le serveur Sona, donc aussi
-  en 4G, sans QR code : lecture, volume, j'aime, aléatoire, répéter, et
+  en 4G : lecture, volume, j'aime, aléatoire, répéter, et
   « À suivre » (un appui lance le titre sur le PC).
-- **Télécommande du téléphone** (à la Cider Remote) : bouton téléphone en
-  haut de la fenêtre (ou Réglages → Télécommande du téléphone) → un QR code.
-  Le téléphone le scanne et ouvre Sona Remote : pochette en grand, lecture,
-  position, volume, paroles synchronisées, file d'attente et recherche (le
-  titre choisi se lance sur le PC). Aucune app à installer : c'est une page
-  servie par le PC ; on peut l'ajouter à l'écran d'accueil.
 - **Artistes en featuring, disques et crédits** : « feat. X » à côté de l'artiste
   (liste, lecteur, album), albums en plusieurs disques séparés (« Disque 1 »,
   « Disque 2 »…), et un onglet « Crédits » à côté des paroles (artistes, label,
@@ -35,9 +29,6 @@ ce qu'un navigateur ne sait pas faire.
 - **Paroles** : décalage ± 0,5 s réglable par titre ; **page artiste** :
   biographie (Wikipédia), discographie filtrable et triable ;
   **récap** partageable en image ; touche `?` pour l'aide des raccourcis.
-- **Paroles en surimpression** : les paroles synchronisées par-dessus les
-  autres fenêtres (jeu, navigateur…), en bas ou en haut de l'écran ; on
-  clique au travers. Réglages, zone de notification ou raccourci clavier.
 - **Statut Discord** : « Écoute Sona » sur ton profil, avec le titre, la
   pochette et la progression — aussi pour ce qui joue sur l'iPhone ou le
   site (Sona Connect), tant que Sona tourne sur le PC, même réduit près de
@@ -75,22 +66,15 @@ ce qu'un navigateur ne sait pas faire.
 - **Barre des tâches** : dans l'aperçu, précédent / lecture / suivant et
   ♥ (plein quand le titre est dans ta bibliothèque) ; l'icône se remplit
   au fil du titre (orange en pause) ; clic droit sur l'icône : lecture /
-  pause, suivant, précédent, mini-lecteur, paroles.
+  pause, suivant, précédent, mini-lecteur.
 - **Fond d'écran pochette** (coupé par défaut) : le fond d'écran de Windows
   devient la pochette en cours, floue et assombrie ; ton fond d'écran
   revient quand tu coupes l'option.
-- **Commandes vocales « Sona… »** (coupées par défaut) : « Sona, pause »,
-  « Sona, suivant », « Sona, plus fort », « Sona, j'aime », « Sona, mets du
-  PNL ». Reconnaissance vocale de Windows, hors ligne ; il faut la voix
-  française de Windows (Paramètres → Heure et langue → Voix / Langue →
-  Français → Reconnaissance vocale).
 - **Mode jeu** : un jeu (ou toute app) en plein écran → plus de
-  notifications de Sona, paroles en surimpression sur une ligne, discrètes.
+  notifications de Sona.
   Windows le signale lui-même (SHQueryUserNotificationState).
-- **Visualiseur** (bouton ondes en haut) : spectre plein écran aux couleurs
-  de la pochette ; F pour le plein écran, Échap pour fermer.
 - **Raccourcis clavier globaux** (Réglages → Raccourcis clavier) : lecture,
-  suivant, précédent, volume, j'aime, paroles, afficher Sona — même quand
+  suivant, précédent, volume, j'aime, afficher Sona — même quand
   Sona est en arrière-plan.
 - **Mini-lecteur** : une petite fenêtre en verre (le vrai verre acrylique de
   Windows 11), toujours au premier plan.
@@ -125,24 +109,27 @@ premier lancement, Windows SmartScreen affiche « Windows a protégé votre
 ordinateur ». Clique sur **Informations complémentaires**, puis **Exécuter
 quand même**.
 
-À la première activation de la télécommande, le **pare-feu Windows** demande
-s'il faut autoriser Sona : accepte pour les **réseaux privés** (le Wi-Fi de
-la maison), sinon le téléphone ne peut pas joindre le PC.
-
 ## Sona sur l'iPhone
 
 La même méthode que CordLauncher (même moteur, `isideload`) : Sona s'installe
 sur l'iPhone depuis le PC, **signée avec ton compte Apple** (gratuit), sans
 SideStore ni Sideloadly.
 
-1. Installe **Appareils Apple** (Microsoft Store) ou **iTunes** : Windows en
-   a besoin pour parler à l'iPhone (service *Apple Mobile Device*).
-2. Branche l'iPhone, déverrouille-le, touche **Se fier**.
-3. Onglet **Sona sur l'iPhone** → **Connecter mon compte Apple** (le code de
-   vérification d'Apple s'affiche dans l'app) → **Installer Sona**.
-4. Sur l'iPhone : Réglages › Général › **VPN et gestion de l'appareil** ›
-   faire confiance à ton compte, puis activer le **mode développeur** si iOS
-   le demande.
+L'onglet **Sona sur l'iPhone** contient le même guide, qui coche les étapes
+déjà faites.
+
+1. Installe **Appareils Apple** (Microsoft Store) ou
+   [**iTunes**](https://www.apple.com/itunes/download/win64) : Windows en a
+   besoin pour parler à l'iPhone (service *Apple Mobile Device*).
+2. En secours, si Apple refuse la connexion : **iCloud pour Windows**, avec le
+   [.exe d'Apple](https://updates.cdn-apple.com/2020/windows/001-39935-20200911-1A70AA56-F448-11EA-8CC0-99D41950005E/iCloudSetup.exe)
+   (pas celui du Microsoft Store).
+3. Branche l'iPhone, déverrouille-le, touche **Se fier**.
+4. **Connecter mon compte Apple** (le code de vérification d'Apple s'affiche
+   dans l'app) → **Installer Sona**.
+5. Sur l'iPhone : Réglages › Général › **VPN et gestion de l'appareil** ›
+   faire confiance à ton compte, puis Réglages › Confidentialité et sécurité ›
+   **Mode développeur**.
 
 Ensuite, le **mode automatique** (activé par défaut) fait le reste, même
 fenêtre fermée : chaque nouvelle version de Sona iOS (la source SideStore du
@@ -172,10 +159,10 @@ entrée/sortie standard.
 
 Chaque fusion sur `master` publie la version « Sona pour Windows » avec un
 `latest.json` (numéro de version, installateur, empreinte SHA-256). L'app le
-lit au démarrage puis toutes les 6 heures :
+lit au démarrage, au réveil du PC puis toutes les heures :
 
 - **Rechercher automatiquement** (par défaut) : une notification par
-  nouvelle version, et « Mettre à jour » dans Réglages › Mises à jour ;
+  nouvelle version, une pastille « Mettre à jour » à l'écran et dans Réglages ;
 - **Installer sans demander** : téléchargement, vérification de
   l'empreinte, installation silencieuse, Sona redémarre à jour.
 
@@ -187,7 +174,7 @@ automatique de l'onglet Sona sur l'iPhone.
 
 `Sona-StreamDeck.streamDeckPlugin` (dans la version « Sona pour Windows ») :
 double-clic pour l'installer dans le logiciel Stream Deck (6.5 ou plus).
-Rien à configurer : il lit la clé de la télécommande dans les réglages de
+Rien à configurer : il lit la clé du lien dans les réglages de
 Sona sur le même PC et lui parle en local.
 
 | Action | Effet |
@@ -199,8 +186,6 @@ Sona sur le même PC et lui parle en local.
 | Molette Sona (Stream Deck +) | Tourner : volume (1 % par cran) · appuyer : lecture/pause · toucher : suivant |
 | Position Sona (Stream Deck +) | Tourner : avancer/reculer de 5 s par cran · appuyer : lecture/pause |
 | Ajouter à une playlist | Le titre en cours dans la playlist choisie (panneau de la touche) |
-| Radio DJ | Une radio à partir du titre en cours |
-| Paroles | Affiche ou masque les paroles en surimpression |
 | Playlist | La pochette d'une playlist choisie (panneau de la touche) ; un appui la lance |
 | Partager le titre | Copie « 🎧 titre — artiste » et un lien d'écoute, prêt à coller dans Discord |
 | Préréglage de volume | Passe au préréglage suivant (En vocal, Calme, Normal, Fort), écrit sur la touche |
@@ -210,7 +195,7 @@ logiciel Stream Deck) : « Ce PC », ou un autre appareil Sona Connect du
 compte (l'iPhone, un autre ordinateur) allumé. Sona pour Windows relaie
 alors les commandes à cet appareil ; éteint, la touche l'indique.
 
-Sona fermé, ou télécommande coupée dans Sona : les touches l'indiquent. Un
+Sona fermé, ou plugin coupé dans les réglages de Sona : les touches l'indiquent. Un
 appui qui échoue affiche l'alerte du Stream Deck et écrit la raison sur la
 touche pendant 4 s ; le détail est dans le journal du plugin
 (`%APPDATA%\Elgato\StreamDeck\Plugins\app.sona.remote.sdPlugin\logs`). Le code est dans `streamdeck/`
@@ -226,20 +211,10 @@ L'adresse du serveur est celle de `web/index.html` (`<meta
 name="sona-server">`) ; elle se change dans Réglages → Sona pour Windows →
 Serveur Sona si le serveur déménage.
 
-## Télécommande : sécurité
+## Lien avec le Stream Deck : sécurité
 
-- Le PC n'accepte que les adresses du **réseau local** (192.168.x, 10.x,
-  172.16–31.x, et 100.64.x pour Tailscale) : même si le pare-feu laissait
-  passer, Internet resterait dehors.
-- Tout ce qui lit ou change la lecture demande la **clé d'association**
-  (128 bits) contenue dans le QR code. Elle voyage après le `#` de l'adresse :
-  jamais dans une requête ni dans un journal. Le téléphone la garde ensuite.
-- « Nouveau code d'association » (dans la fenêtre du QR code) change la clé
-  et déconnecte tous les téléphones : à faire si un téléphone ne doit plus
-  piloter le PC.
-- Désactivable entièrement (Réglages → Télécommande du téléphone).
-
-Port par défaut : **7650** (le suivant libre jusqu'à 7655 s'il est pris).
+Le serveur n'écoute que **ce PC** (127.0.0.1, port 7650 ou le suivant libre) :
+rien depuis le réseau. Désactivable dans Réglages → Plugin Stream Deck.
 
 ## Développer
 
@@ -249,7 +224,7 @@ Node 22, depuis ce dossier :
 npm install
 npm start          # lance l'app (Sona web du dossier ../web, rechargé à chaque lancement)
 cd iphone && cargo build --release   # module iPhone (trouvé tout seul par `npm start`)
-npm test           # tests de la télécommande (node --test, sans Electron)
+npm test           # tests de l'app (node --test, sans Electron)
 npm run check      # syntaxe de tous les scripts
 npm run dist       # installateur + portable Windows dans dist/ (à lancer sous Windows)
 ```
@@ -262,7 +237,7 @@ Organisation :
 |---|---|
 | `src/main.js` | Processus principal : fenêtre, zone de notification, barre des tâches, mini-lecteur, protocole `app://sona/` qui sert `web/` |
 | `src/preload.js` | Pont `window.sonaDesktop` (seulement pour la page de l'app) |
-| `src/remote-server.js` | Serveur de la télécommande (HTTP + Server-Sent Events) |
+| `src/remote-server.js` | Lien avec le plugin Stream Deck (ce PC seulement) |
 | `src/settings.js` | Réglages de l'app (`%APPDATA%\Sona\settings.json`) |
 | `src/glyphs.js` | Icônes de la barre des tâches, dessinées en mémoire |
 | `src/iphone.js` | Onglet iPhone : pilote `sona-iphone`, mode automatique, rappels |
@@ -270,7 +245,6 @@ Organisation :
 | `iphone/` | `sona-iphone` (Rust) : compte Apple, signature, envoi câble/Wi-Fi |
 | `streamdeck/` | Plugin Stream Deck |
 | `src/mini/` | Mini-lecteur |
-| `remote/` | Page Sona Remote, servie au téléphone |
 | `../web/desktop.css` | Habillage verre liquide de Sona web dans l'app |
 
 Côté page, tout passe par la section « Sona pour Windows » de `web/app.js` :

@@ -67,35 +67,6 @@ struct PlaySmartPlaylistIntent: AppIntent {
     }
 }
 
-/// Radio DJ à partir du titre en cours (ou du mix du jour).
-struct StartDJRadioIntent: AppIntent {
-    static let title: LocalizedStringResource = "Lancer la radio DJ"
-    static let description = IntentDescription("Une suite sans fin à partir du titre en cours, enchaînée en AutoMix.")
-
-    @MainActor
-    func perform() async throws -> some IntentResult & ProvidesDialog {
-        var seed = PlayerManager.shared.current
-        if seed == nil { seed = try await APIClient.shared.mixes().first?.tracks.first }
-        guard let seed else { return .result(dialog: "Lance d'abord un titre dans Sona.") }
-        try await PlayerManager.shared.playDJRadio(from: seed)
-        return .result(dialog: "Radio DJ à partir de \(seed.title).")
-    }
-}
-
-/// « Dis Siri, lance le titre du jour sur Sona ».
-struct PlayDailyTrackIntent: AppIntent {
-    static let title: LocalizedStringResource = "Jouer le titre du jour"
-    static let description = IntentDescription("Une découverte choisie d'après tes goûts, la même toute la journée.")
-
-    @MainActor
-    func perform() async throws -> some IntentResult & ProvidesDialog {
-        let daily = try await APIClient.shared.dailyTrack()
-        guard let track = daily.track else { return .result(dialog: "Pas encore de titre du jour : écoute un peu de musique d'abord.") }
-        PlayerManager.shared.play(track, context: [track], name: "Titre du jour")
-        return .result(dialog: "Titre du jour : \(track.title), de \(track.artist).")
-    }
-}
-
 /// Une de tes playlists, pour Siri et Raccourcis (« mets ma playlist Sport »).
 struct PlaylistEntity: AppEntity {
     static let typeDisplayRepresentation: TypeDisplayRepresentation = "Playlist"
@@ -305,12 +276,6 @@ struct SonaShortcuts: AppShortcutsProvider {
             systemImageName: "sparkles"
         )
         AppShortcut(
-            intent: StartDJRadioIntent(),
-            phrases: ["Lance la radio DJ sur \(.applicationName)", "Radio DJ \(.applicationName)"],
-            shortTitle: "Radio DJ",
-            systemImageName: "dial.medium"
-        )
-        AppShortcut(
             intent: PlaySmartPlaylistIntent(),
             phrases: ["Joue \(\.$playlist) sur \(.applicationName)", "Mets mes titres \(\.$playlist) sur \(.applicationName)"],
             shortTitle: "Playlist intelligente",
@@ -336,12 +301,6 @@ struct SonaShortcuts: AppShortcutsProvider {
         )
         // 10 phrases au plus par app : pause, reprise et suivant restent
         // dans Raccourcis (et Siri sait déjà les faire pour l'app qui joue).
-        AppShortcut(
-            intent: PlayDailyTrackIntent(),
-            phrases: ["Lance le titre du jour sur \(.applicationName)", "Titre du jour \(.applicationName)"],
-            shortTitle: "Titre du jour",
-            systemImageName: "sparkle"
-        )
         AppShortcut(
             intent: PlayUserPlaylistIntent(),
             phrases: ["Mets ma playlist \(\.$playlist) sur \(.applicationName)", "Joue ma playlist \(\.$playlist) sur \(.applicationName)"],

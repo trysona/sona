@@ -37,13 +37,13 @@ Une seule API, un seul compte, et le même catalogue partout : sur iPhone, sur l
 
 ### Mixer
 - **AutoMix** : le tempo, la grille de temps, le premier temps de chaque mesure et la tonalité (code Camelot) de chaque titre sont mesurés ; les enchaînements sont calés sur les mesures, avec effets, sans coupure.
-- **Radios**, **mix du jour**, **radio DJ** avec voix de DJ, minuteur de sommeil intelligent (le titre se termine en fondu), **réveil musical**.
+- **Radios**, **mix du jour**, minuteur de sommeil intelligent (le titre se termine en fondu), **réveil musical**.
 - **Égaliseur 5 bandes**, volume égalisé, fondu entre les titres.
 
 ### Partager
 - **Sona Connect** : tous tes appareils se voient. Lance la musique sur le PC depuis l'iPhone, même en 4G, même fenêtre fermée.
 - **Écoute ensemble** : une session à plusieurs, chacun propose des titres.
-- **Amis et Blend**, playlists collaboratives, classements de la semaine, défis et badges.
+- **Amis et Blend**, playlists collaboratives.
 - **Diffusion sur TV / PS5** depuis l'app.
 
 ### Découvrir
@@ -58,7 +58,7 @@ Une seule API, un seul compte, et le même catalogue partout : sur iPhone, sur l
 |---|---|
 | **iPhone** — `ios/` | App SwiftUI native : widgets, Live Activities, Siri et bouton Action, mode voiture, téléchargements hors ligne, notifications. Compilée par GitHub Actions. |
 | **Web** — `web/` | Le même Sona dans le navigateur, sur ordinateur et téléphone. Installable (PWA). |
-| **Windows** — `desktop/` | Le site dans une vraie fenêtre « verre liquide » (Electron), avec Sona Connect et une télécommande par QR code. |
+| **Windows** — `desktop/` | Le site dans une vraie fenêtre « verre liquide » (Electron), avec Sona Connect. |
 | **Telegram** — `app/bot/` | Le bot d'origine : cherche et envoie les morceaux dans la conversation, avec une interface en écrans plutôt qu'en commandes. |
 
 ## Architecture

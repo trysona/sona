@@ -341,7 +341,8 @@ def may(party: Party, user_id: int, permission: str) -> bool:
 
 
 def is_staff(party: Party, user_id: int) -> bool:
-    return role_of(party, user_id) in ("host", "moderator")
+    # Présent dans la session : un modérateur expulsé ou parti ne commande plus rien.
+    return user_id in party.members and role_of(party, user_id) in ("host", "moderator")
 
 
 def propose(party: Party, user_id: int, track: dict) -> QueueItem:
@@ -562,6 +563,7 @@ def transfer(party: Party, user_id: int, new_host: int) -> None:
 def kick(party: Party, user_id: int, member_id: int) -> None:
     """Expulsion : la personne peut revenir (si l'accès le permet). Pour l'en empêcher : `ban`."""
     _target(party, user_id, member_id)
+    party.moderators.discard(member_id)
     leave(party, member_id)
 
 

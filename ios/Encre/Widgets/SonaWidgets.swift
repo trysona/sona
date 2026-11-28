@@ -15,7 +15,6 @@ import WidgetKit
 struct SonaWidgetBundle: WidgetBundle {
     var body: some Widget {
         ShortcutsWidget()
-        DailyTrackWidget()
         RemotePCWidget()
         LockScreenWidget()
         RemoteToggleControl()
@@ -43,7 +42,7 @@ private struct StaticProvider: TimelineProvider {
     func placeholder(in context: Context) -> StaticEntry { StaticEntry(date: .now) }
     func getSnapshot(in context: Context, completion: @escaping (StaticEntry) -> Void) { completion(StaticEntry(date: .now)) }
     func getTimeline(in context: Context, completion: @escaping (Timeline<StaticEntry>) -> Void) {
-        // Change de jour à minuit : « défi du jour » toujours d'actualité.
+        // Rafraîchi à minuit.
         let midnight = Calendar.current.startOfDay(for: .now.addingTimeInterval(86_400))
         completion(Timeline(entries: [StaticEntry(date: .now)], policy: .after(midnight)))
     }
@@ -61,7 +60,7 @@ struct ShortcutsWidget: Widget {
                 .containerBackground(for: .widget) { sonaGradient }
         }
         .configurationDisplayName("Raccourcis Sona")
-        .description("Ton récap, l'écoute ensemble et la radio DJ en un geste.")
+        .description("Ton récap et l'écoute ensemble en un geste.")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
@@ -87,7 +86,6 @@ private struct ShortcutsView: View {
                     Text("Sona").font(.system(size: 16, weight: .heavy)).foregroundStyle(.white)
                 }
                 HStack(spacing: 8) {
-                    shortcut("Radio DJ", "dial.medium", "encre://djradio")
                     shortcut("Ensemble", "person.2.wave.2.fill", "encre://party")
                     shortcut("Récap", "sparkles", "encre://recap")
                 }
@@ -105,65 +103,6 @@ private struct ShortcutsView: View {
             .frame(maxWidth: .infinity, minHeight: 64)
             .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.white.opacity(0.15)))
         }
-    }
-}
-
-// MARK: - Titre du jour
-
-/// « Titre du jour » : un appui lance la découverte du jour dans Sona. Le
-/// widget ne peut pas lire le titre lui-même (il faudrait un App Group,
-/// voir plus haut) : il l'annonce, l'app le joue.
-struct DailyTrackWidget: Widget {
-    var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "sona.daily", provider: StaticProvider()) { entry in
-            DailyTrackView(date: entry.date)
-                .containerBackground(for: .widget) {
-                    LinearGradient(colors: [Color(red: 0.98, green: 0.35, blue: 0.45), Color(red: 0.45, green: 0.15, blue: 0.75)],
-                                   startPoint: .topLeading, endPoint: .bottomTrailing)
-                }
-        }
-        .configurationDisplayName("Titre du jour")
-        .description("Une découverte choisie d'après tes goûts, nouvelle chaque jour. Un appui pour l'écouter.")
-        .supportedFamilies([.systemSmall, .systemMedium, .accessoryRectangular])
-    }
-}
-
-private struct DailyTrackView: View {
-    let date: Date
-    @Environment(\.widgetFamily) private var family
-
-    var body: some View {
-        Group {
-            if family == .accessoryRectangular {
-                HStack(spacing: 8) {
-                    Image(systemName: "sparkle").font(.system(size: 20, weight: .bold))
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Titre du jour").font(.system(size: 14, weight: .bold))
-                        Text("Touche pour écouter").font(.system(size: 12)).opacity(0.8)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            } else {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Image(systemName: "sparkles").font(.system(size: 22, weight: .bold))
-                        Spacer()
-                        Image(systemName: "play.circle.fill").font(.system(size: 30))
-                    }
-                    Spacer(minLength: 0)
-                    Text(date.formatted(.dateTime.weekday(.wide).day().month(.wide)).capitalized)
-                        .font(.system(size: 11, weight: .semibold)).opacity(0.8)
-                    Text("Ton titre du jour").font(.system(size: family == .systemSmall ? 17 : 20, weight: .heavy))
-                    if family == .systemMedium {
-                        Text("Une découverte d'après tes goûts — un artiste proche de tes favoris, jamais écouté.")
-                            .font(.system(size: 12, weight: .medium)).opacity(0.85).lineLimit(2)
-                    }
-                }
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-        .widgetURL(URL(string: "encre://daily"))
     }
 }
 
@@ -253,7 +192,7 @@ struct LockScreenWidget: Widget {
                 .containerBackground(for: .widget) { Color.clear }
         }
         .configurationDisplayName("Sona")
-        .description("Ouvre Sona ou le défi du jour depuis l'écran verrouillé.")
+        .description("Ouvre Sona ou l'écoute ensemble depuis l'écran verrouillé.")
         .supportedFamilies([.accessoryCircular, .accessoryRectangular])
     }
 }
