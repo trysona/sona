@@ -21,7 +21,7 @@ const SonaSettings = (() => {
     const [profile, identities, keys] = await Promise.all([
       social.me(),
       guest ? [] : auth.identities().catch(() => []),
-      guest || !passkeys.supported() ? [] : passkeys.list().catch(() => []),
+      guest || !window.Sona.config.accountsUrl ? [] : passkeys.list().catch(() => []),
     ]);
     const email = auth.user()?.email;
     const hasPassword = identities.some((i) => i.provider === "email");
@@ -46,9 +46,10 @@ const SonaSettings = (() => {
           ${linked.has(id) ? `<button class="btn small ghost" data-unlink="${id}">Délier</button>` : `<button class="btn small" data-link="${id}">Lier</button>`}</div>`).join("")}
         <p class="set-note">Si tu te connectes avec une autre méthode utilisant la même adresse e-mail vérifiée, c'est le même compte. Tu ne peux jamais retirer ta dernière méthode.</p>
       </div>
-      ${passkeys.supported() && window.Sona.config.accountsUrl ? `<h3 class="set-head">Clés d'accès</h3><div class="set-group">
+      ${(passkeys.supported() || window.sonaDesktop) && window.Sona.config.accountsUrl ? `<h3 class="set-head">Clés d'accès</h3><div class="set-group">
         ${keys.map((k) => `<div class="set-row"><span class="set-text"><b>${h(k.device_name || "Clé d'accès")}</b><small>Ajoutée le ${when(k.created_at)}${k.last_used_at ? ` · utilisée le ${when(k.last_used_at)}` : ""}</small></span><button class="btn small ghost" data-key-del="${k.id}">Supprimer</button></div>`).join("")}
-        ${linkRow("data-key-add", icons.plus, "Ajouter une clé d'accès", "Face ID, Touch ID, Windows Hello")}</div>` : ""}
+        ${passkeys.supported() ? linkRow("data-key-add", icons.plus, "Ajouter une clé d'accès", "Face ID, Touch ID, Windows Hello")
+          : linkRow("data-key-site", icons.plus, "Ajouter une clé d'accès", "S'ouvre sur trysona.fr dans ton navigateur")}</div>` : ""}
       <h3 class="set-head">Sessions</h3><div class="set-group">
         ${linkRow("data-signout-all", icons.close, "Me déconnecter de tous les appareils", "Ferme toutes les sessions ouvertes, y compris celle-ci")}</div>
       <h3 class="set-head">Mes données</h3><div class="set-group">
@@ -113,6 +114,7 @@ const SonaSettings = (() => {
       toast("Clé d'accès ajoutée");
       refresh();
     }));
+    $r("[data-key-site]")?.addEventListener("click", () => passkeys.addOnSite());
     $$("[data-key-del]").forEach((b) => (b.onclick = guard(async () => {
       if (!(await confirmSheet("Supprimer cette clé d'accès ?", "Supprimer"))) return;
       await passkeys.remove(b.dataset.keyDel);
