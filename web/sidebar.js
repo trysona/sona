@@ -356,7 +356,7 @@ const Sidebar = (() => {
       { icon: icons.clock, label: "Écoutes récentes", run: () => go("#/recent") },
       { icon: icons.sparkles, label: "Apparence", sub: "Couleur, formes, menu", run: () => go("#/appearance") },
       desktop ? { icon: icons.phone, label: "Sona sur l'iPhone", run: () => go("#/iphone") } : { icon: icons.download, label: "Installer Sona pour Windows", run: () => window.open(WINDOWS_PAGE, "_blank", "noopener") },
-      account?.is_admin && { icon: icons.pulse, label: "Santé de la lecture", run: () => go("#/health") },
+      isOwner() && { icon: icons.pulse, label: "Santé de la lecture", run: () => go("#/health") },
     ];
     actionSheet("Plus", items);
   }
