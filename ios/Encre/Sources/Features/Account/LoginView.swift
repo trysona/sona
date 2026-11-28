@@ -23,6 +23,9 @@ struct LoginView: View {
             LivingBackground(colors: [
                 Color(hex: 0x3A0D14), Color(hex: 0x14090C), Color(hex: 0x0B0B10), Color(hex: 0x24090F),
             ])
+            // Tout ne tient pas sur un petit iPhone : l'écran défile, et reste calé en bas sur les grands.
+            GeometryReader { screen in
+            ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 Spacer()
                 SonaLogo(size: 72)
@@ -101,6 +104,11 @@ struct LoginView: View {
             .padding(.horizontal, 28)
             .padding(.bottom, 40)
             .animation(Motion.smooth, value: auth.errorMessage)
+            .frame(minHeight: screen.size.height)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .scrollDismissesKeyboard(.interactively)
+            }
         }
     }
 
