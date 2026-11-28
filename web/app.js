@@ -8256,8 +8256,8 @@ function iphoneBody() {
         <button class="tbtn small" data-iph-forget="${esc(p.email)}" title="Oublier ce compte">${icons.close}</button></span>
     </div>`).join("");
 
-  return `${hero}
-    <div class="iph-grid">
+  const guide = iphoneGuide(m, { device, ready, installed });
+  const grid = `<div class="iph-grid">
       <section class="iph-card"><div class="iph-card-head"><h3>Ton iPhone</h3><button class="tbtn small ${m.scanning ? "spin" : ""}" data-iph="refresh" title="Actualiser">${icons.repeat}</button></div>
         ${devices || `<div class="iph-empty">${icons.phone}<b>${m.devicesError ? esc(m.devicesError) : "Aucun iPhone branché"}</b>
           <small>${m.devicesError ? "Puis branche l'iPhone avec un câble." : "Branche-le avec un câble, déverrouille-le et touche « Se fier ». Ensuite, active le Wi-Fi ici pour te passer du câble."}</small></div>`}
@@ -8272,16 +8272,45 @@ function iphoneBody() {
         <div class="iph-card-foot"><button class="btn ghost" data-iph="check" ${m.checking ? "disabled" : ""}>${m.checking ? "Recherche…" : "Rechercher une mise à jour"}</button>
           <button class="btn ghost" data-iph="saveIpa">${icons.download} Enregistrer l'app (.ipa)</button></div>
       </section>
-      <section class="iph-card iph-help"><div class="iph-card-head"><h3>Première installation</h3></div>
-        <ol class="steps">
-          <li>Installe <b>Appareils Apple</b> (Microsoft Store) ou <b>iTunes</b> : Windows en a besoin pour parler à l'iPhone.</li>
-          <li>Branche l'iPhone, déverrouille-le et touche <b>Se fier</b>.</li>
-          <li>Connecte ton compte Apple ici, puis <b>Installer Sona</b>.</li>
-          <li>Sur l'iPhone : <b>Réglages › Général › VPN et gestion de l'appareil</b> › fais confiance à ton compte, puis active le <b>mode développeur</b> si iOS le demande.</li>
-        </ol>
-        <p class="iph-note muted">Compte Apple gratuit : l'app est valable 7 jours (Sona la renouvelle) et 3 apps au plus par iPhone.</p>
-      </section>
     </div>`;
+  // Tant que Sona n'est pas installée, le guide passe devant.
+  return hero + (installed ? grid + guide : guide + grid);
+}
+
+// Installateurs d'Apple (les mêmes liens qu'AltStore et Sideloadly).
+const ITUNES_EXE = "https://www.apple.com/itunes/download/win64";
+const ICLOUD_EXE = "https://updates.cdn-apple.com/2020/windows/001-39935-20200911-1A70AA56-F448-11EA-8CC0-99D41950005E/iCloudSetup.exe";
+
+/** Guide d'installation : une étape se coche toute seule quand Sona peut le constater. */
+function iphoneGuide(m, { device, ready, installed }) {
+  const link = (href, label) => `<a class="btn ghost small" href="${href}" target="_blank" rel="noopener">${icons.download} ${label}</a>`;
+  const steps = [
+    [!m.devicesError && !m.scanning, "Le pilote d'Apple",
+      "Il permet à Windows de parler à l'iPhone. « Appareils Apple » ou iTunes déjà installé suffit. Sinon, télécharge iTunes, lance le fichier .exe puis redémarre le PC.",
+      link(ITUNES_EXE, "Télécharger iTunes (.exe)")],
+    [m.icloud, "iCloud pour Windows (secours)",
+      "Il aide quand Apple refuse la connexion. Prends le .exe d'Apple, pas la version du Microsoft Store (désinstalle-la d'abord si tu l'as). Ouvre-le une fois, sans forcément t'y connecter.",
+      link(ICLOUD_EXE, "Télécharger iCloud (.exe)")],
+    [!!device?.trusted && device.connection !== "offline", "Brancher l'iPhone",
+      "Câble directement sur le PC, iPhone déverrouillé. Touche <b>Se fier</b> et tape ton code."],
+    [ready, "Ton compte Apple", "Un compte gratuit suffit. Un code à 6 chiffres arrive sur tes appareils.",
+      `<button class="btn ghost small" data-iph="add-account">${icons.plus} Connecter mon compte</button>`],
+    [!!installed, "Installer Sona", "Le bouton en haut de la page. Laisse l'iPhone branché jusqu'à la fin."],
+    [false, "Autoriser Sona sur l'iPhone",
+      "<b>Réglages › Général › VPN et gestion de l'appareil</b> › ton identifiant › <b>Faire confiance</b>. Puis <b>Réglages › Confidentialité et sécurité › Mode développeur</b> : active-le, l'iPhone redémarre."],
+  ];
+  return `<details class="iph-card iph-help iph-guide" ${iph.guideOpen ?? !installed ? "open" : ""}>
+    <summary>Guide d'installation</summary>
+    <ol class="steps">${steps.map(([done, title, text, action]) => `<li class="${done ? "done" : ""}"><b>${title}</b><br>${text}${action && !done ? `<br>${action}` : ""}</li>`).join("")}</ol>
+    <button class="btn ghost small" data-iph="refresh">${icons.repeat} Vérifier à nouveau</button>
+    <h4>Ça bloque ?</h4>
+    <ul class="steps">
+      <li><b>iPhone introuvable</b> : essaie un autre câble et un autre port du PC (sans hub), puis redémarre le PC.</li>
+      <li><b>Apple refuse la connexion</b> : installe iCloud (étape 2), puis menu ⋯ › « Réinitialiser l'appareil Apple ». N'enchaîne pas les essais, Apple bloquerait un moment.</li>
+      <li><b>Maximum de certificats</b> : révoque-les depuis l'outil qui les a créés (AltStore, Sideloadly…).</li>
+    </ul>
+    <p class="iph-note muted">Compte Apple gratuit : l'app est valable 7 jours (Sona la renouvelle) et 3 apps au plus par iPhone.</p>
+  </details>`;
 }
 
 function bindIphone() {
@@ -8296,6 +8325,8 @@ function bindIphone() {
     const device = iphoneTargetDevice(iph.state || {});
     const udid = device?.udid;
     if (target("[data-iph-wifi]") || target(".iph-wifi")) return;
+    // La page se redessine à chaque nouvelle : on retient si le guide est ouvert.
+    if (target(".iph-guide > summary")) { iph.guideOpen = !target(".iph-guide").open; return; }
     const act = target("[data-iph]")?.dataset.iph;
     if (act === "refresh") return run("refresh");
     if (act === "check") return run("check");

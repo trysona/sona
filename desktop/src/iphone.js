@@ -26,6 +26,7 @@ const model = {
   status: { active: null, profiles: [], busy: false },
   devices: [],
   devicesError: null,
+  icloud: false,        // composants iCloud (.exe d'Apple) présents sur ce PC
   apps: [],
   latest: null,         // { version, url, size, notes, date }
   lastCheck: null,
@@ -141,6 +142,9 @@ function compareVersions(a, b) {
 
 async function refresh({ devices = true } = {}) {
   if (!model.available) return;
+  // Même fichier que celui que cherche sona-iphone (local_anisette.rs).
+  const x86 = process.env["ProgramFiles(x86)"];
+  model.icloud = !!x86 && fs.existsSync(path.join(x86, "Common Files", "Apple", "Internet Services", "AOSKit.dll"));
   const jobs = [
     call("status").then((status) => (model.status = status)),
     call("apps").then((apps) => (model.apps = apps.filter((a) => a.id === APP_ID))),

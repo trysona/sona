@@ -115,14 +115,21 @@ La même méthode que CordLauncher (même moteur, `isideload`) : Sona s'installe
 sur l'iPhone depuis le PC, **signée avec ton compte Apple** (gratuit), sans
 SideStore ni Sideloadly.
 
-1. Installe **Appareils Apple** (Microsoft Store) ou **iTunes** : Windows en
-   a besoin pour parler à l'iPhone (service *Apple Mobile Device*).
-2. Branche l'iPhone, déverrouille-le, touche **Se fier**.
-3. Onglet **Sona sur l'iPhone** → **Connecter mon compte Apple** (le code de
-   vérification d'Apple s'affiche dans l'app) → **Installer Sona**.
-4. Sur l'iPhone : Réglages › Général › **VPN et gestion de l'appareil** ›
-   faire confiance à ton compte, puis activer le **mode développeur** si iOS
-   le demande.
+L'onglet **Sona sur l'iPhone** contient le même guide, qui coche les étapes
+déjà faites.
+
+1. Installe **Appareils Apple** (Microsoft Store) ou
+   [**iTunes**](https://www.apple.com/itunes/download/win64) : Windows en a
+   besoin pour parler à l'iPhone (service *Apple Mobile Device*).
+2. En secours, si Apple refuse la connexion : **iCloud pour Windows**, avec le
+   [.exe d'Apple](https://updates.cdn-apple.com/2020/windows/001-39935-20200911-1A70AA56-F448-11EA-8CC0-99D41950005E/iCloudSetup.exe)
+   (pas celui du Microsoft Store).
+3. Branche l'iPhone, déverrouille-le, touche **Se fier**.
+4. **Connecter mon compte Apple** (le code de vérification d'Apple s'affiche
+   dans l'app) → **Installer Sona**.
+5. Sur l'iPhone : Réglages › Général › **VPN et gestion de l'appareil** ›
+   faire confiance à ton compte, puis Réglages › Confidentialité et sécurité ›
+   **Mode développeur**.
 
 Ensuite, le **mode automatique** (activé par défaut) fait le reste, même
 fenêtre fermée : chaque nouvelle version de Sona iOS (la source SideStore du
