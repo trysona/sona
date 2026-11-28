@@ -4727,7 +4727,10 @@ async function followSeparation(t, gen) {
     try {
       st = requested ? await api(karaokePath(t)) : await api(karaokePath(t), { method: "POST" });
       requested = true;
-    } catch {}
+    } catch (e) {
+      // Refus définitif (fichier perso, compte invité, trop de demandes) : dit une fois, sans réessayer en boucle.
+      if ([400, 403, 404, 429].includes(e.status) && sing.gen === gen) { sing.status = e.message; renderSing(); return; }
+    }
     if (sing.gen !== gen) return;
     if (st?.status === "ready") {
       const quality = st.quality || "hq";
