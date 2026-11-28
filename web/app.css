@@ -2921,3 +2921,11 @@ select.field option { background: var(--bg-elevated); color: var(--text); }
 .song-card b, .song-card span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13.5px; }
 .song-card span { color: var(--text-2); }
 @media (max-width: 760px) { .home-actions .btn { padding: 8px 14px; font-size: 13px; } }
+
+/* Meilleur résultat : la carte commence en haut (étirée, son contenu tombait sous le lecteur), et la petite liste
+   d'à côté laisse la place aux titres (ni colonne de numéro ni colonne d'album, vides ici). */
+.top-card { align-self: start; }
+@media (min-width: 761px) {
+  .top-result .tr { grid-template-columns: 44px minmax(0, 1fr) 60px auto; }
+  .top-result .tr > :is(.n, .al) { display: none; }
+}
