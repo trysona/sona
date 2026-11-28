@@ -54,6 +54,8 @@ class Api(private val settings: Settings) {
     }
 
     private fun errorText(code: Int, body: String): String {
+        // Compte banni ou suspendu : pas de « detail » dans ce refus, seulement `error: sanctioned`.
+        if (code == 403 && body.contains("\"sanctioned\"")) return "Ton compte est suspendu ou banni."
         // « detail » est une phrase, ou (erreur de validation 422) une liste d'objets avec « msg ».
         val detail = Regex("\"detail\"\\s*:\\s*\"([^\"]*)\"").find(body)?.groupValues?.get(1)
             ?: Regex("\"msg\"\\s*:\\s*\"([^\"]*)\"").find(body)?.groupValues?.get(1)

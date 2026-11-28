@@ -238,8 +238,11 @@ object Hub {
         if (tracks.isEmpty()) return
         ensureService()
         val p = player()
-        val list = tracks.take(MAX_QUEUE)
-        val from = start.coerceIn(0, list.lastIndex)
+        // File plafonnée : une fenêtre autour du titre choisi (au-delà du 150ᵉ, un autre se lançait).
+        val chosen = start.coerceIn(0, tracks.lastIndex)
+        val first = (chosen - 20).coerceIn(0, maxOf(0, tracks.size - MAX_QUEUE))
+        val list = tracks.subList(first, minOf(tracks.size, first + MAX_QUEUE)).toList()
+        val from = chosen - first
         queue.value = list
         queueName.value = name
         index.value = from
@@ -324,10 +327,18 @@ object Hub {
         }
     }
 
+    /** Volume d'avant le fondu du minuteur, à rendre ensuite (et pas le maximum). */
+    private var fadedFrom: Float? = null
+
+    private fun unfade() {
+        fadedFrom?.let { player?.volume = it }
+        fadedFrom = null
+    }
+
     /** Éteint la musique après `minutes` (fondu sur les 10 dernières secondes) ; null : annule. */
     fun setSleepTimer(minutes: Int?) {
         sleepJob?.cancel()
-        player?.volume = 1f
+        unfade()
         if (minutes == null) {
             sleepEndsAt.value = null
             return
@@ -338,11 +349,14 @@ object Hub {
             while (isActive) {
                 val left = end - System.currentTimeMillis()
                 if (left <= 0) break
-                if (left < 10_000) player?.volume = (left / 10_000f).coerceIn(0f, 1f)
+                if (left < 10_000) {
+                    val base = fadedFrom ?: (player?.volume ?: 1f).also { fadedFrom = it }
+                    player?.volume = base * (left / 10_000f).coerceIn(0f, 1f)
+                }
                 delay(500)
             }
             player?.pause()
-            player?.volume = 1f
+            unfade()
             sleepEndsAt.value = null
         }
     }
