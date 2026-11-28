@@ -818,6 +818,8 @@ html[data-lyrblur="off"] .lyrics p, html[data-lyrblur="off"] .lyrics p.near { fi
 .share-row b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .share-row span { font-size: 13px; color: var(--text-2); }
 .hidden { display: none !important; }
+/* L'attribut `hidden` cache toujours, même un élément auquel une règle donne un `display`. */
+[hidden] { display: none !important; }
 .btn.small { height: 30px; padding: 0 14px; font-size: 13px; }
 .btn.big { height: 52px; padding: 0 30px; font-size: 17px; border-radius: 999px; }
 .btn.wide { width: 100%; justify-content: center; margin-top: 26px; }
