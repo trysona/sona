@@ -466,3 +466,18 @@ def test_a_sona_account_uses_the_lastfm_name_linked_in_the_accounts_service(clie
     live = client.get("/stats/live", headers=alice).json()["lastfm"]
     assert (live["connected"], live["enabled"], live["username"]) == (True, False, "alice_lfm")
     assert client.get("/stats/import/lastfm", headers=alice).json()["configured"] is True
+
+
+def test_a_kicked_moderator_loses_every_power():
+    party.reset()
+    room = party.create(1, "Hôte", None)
+    room.access = "link"
+    party.join(room.code, 2, "Modo", None)
+    party.join(room.code, 3, "Autre", None)
+    party.set_moderator(room, 1, 2, True)
+    party.kick(room, 1, 2)
+    for attempt in (lambda: party.create_invite(room, 2), lambda: party.kick(room, 2, 3), lambda: party.delete_message(room, 2, 1)):
+        with pytest.raises(party.PartyError):
+            attempt()
+    party.join(room.code, 2, "Modo", None)
+    assert party.role_of(room, 2) == "listener"
