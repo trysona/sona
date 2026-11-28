@@ -432,7 +432,8 @@
       const rows = await unwrap(table("user_settings").update(patch).eq("user_id", auth.user().id).select());
       return rows[0];
     },
-    async sanctions() { return unwrap(table("sanctions").select("*").order("created_at", { ascending: false })); },
+    // Filtre explicite : les règles de la base laissent l'équipe lire les sanctions de tout le monde.
+    async sanctions() { return unwrap(table("sanctions").select("*").eq("user_id", auth.user().id).order("created_at", { ascending: false })); },
     async acknowledge(id) { await unwrap(table("sanctions").update({ acknowledged_at: new Date().toISOString() }).eq("id", id)); },
     async notifications(limit = 30) { return unwrap(table("notifications").select("*").order("created_at", { ascending: false }).limit(limit)); },
     async markRead(ids) {

@@ -65,7 +65,8 @@ const MOCK_SUPABASE = `
         profiles: [M.profile], privacy_settings: [M.privacy], user_settings: [M.settings], sanctions: M.sanctions, notifications: M.notifications,
         connected_services: M.services, passkey_credentials: M.passkeys, appeals: M.appeals, reports: M.reports, admin_alerts: M.alerts, audit_log: M.audit, report_notes: [],
       }[table] || [];
-      return ok(q.single ? rows[0] : rows).then((r) => (table === "appeals" && q.filters.sanction_id ? { data: rows, error: null } : r));
+      const own = table === "sanctions" && q.filters.user_id ? rows.filter((r) => !r.user_id || r.user_id === q.filters.user_id) : rows;
+      return ok(q.single ? own[0] : own).then((r) => (table === "appeals" && q.filters.sanction_id ? { data: rows, error: null } : r));
     };
     const api = {
       select() { return api; }, eq(k, v) { q.filters[k] = v; return api; }, in() { return api; }, order() { return api; }, limit() { return api; },
