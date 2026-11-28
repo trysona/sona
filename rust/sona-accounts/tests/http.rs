@@ -90,6 +90,7 @@ async fn a_moderator_has_limited_powers_over_http() {
     assert_eq!(ban.0, StatusCode::FORBIDDEN);
     let long = api.call("POST", "/admin/sanction", Some(&modo), Some(json!({ "target": target, "kind": "suspension", "reason": "motif valable", "duration_seconds": 30 * 86400 }))).await;
     assert_eq!(long.0, StatusCode::FORBIDDEN);
+    assert_eq!(long.1["message"], "Un modérateur ne peut pas suspendre plus de 7 jours.");
     for (path, body) in [
         ("/admin/role", json!({ "target": target, "role": "moderator", "reason": "motif valable" })),
         ("/admin/delete-user", json!({ "target": target, "reason": "motif valable" })),

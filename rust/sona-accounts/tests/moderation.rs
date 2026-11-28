@@ -286,7 +286,11 @@ async fn reports_are_rate_limited_deduplicated_and_auto_quarantine() {
     let report: String = db.su_scalar("select id from public.reports where reporter_id = (select id from public.profiles where username = 'signaleur1')").await;
     db.x(Who::Service, &format!("select public.admin_sanction('{admin}', '{target}', 'suspension', 'spam avéré', interval '7 days', '{report}')")).await.unwrap();
     assert_eq!(db.su_scalar(&format!("select status from public.reports where id = '{report}'")).await, "resolved");
+    // La clôture par sanction prévient aussi le signalant ; une note ajoutée ensuite ne redate pas la clôture.
+    assert_eq!(db.count(u(reporters[1]), "select * from public.notifications where kind = 'report_update'").await, 1);
+    let closed = db.su_scalar(&format!("select resolved_at::text from public.reports where id = '{report}'")).await;
     db.x(Who::Service, &format!("select public.staff_update_report('{admin}', '{report}', 'resolved', null, 'traité', 'rien à ajouter')")).await.unwrap();
+    assert_eq!(db.su_scalar(&format!("select resolved_at::text from public.reports where id = '{report}'")).await, closed);
     db.x(Who::Service, &format!("select public.staff_update_report('{admin}', '{}', 'dismissed', '{admin}', 'infondé', null)", db.su_scalar("select id from public.reports where target_ref = 'msg-0'").await)).await.unwrap();
     assert_eq!(db.count(u(r0), "select * from public.notifications where kind = 'report_update'").await, 1);
     assert_eq!(db.count(u(admin), "select * from public.report_notes").await, 1);
