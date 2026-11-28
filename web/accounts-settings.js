@@ -387,7 +387,7 @@ const SonaSettings = (() => {
   function notificationsSheet() {
     const items = notif.list;
     const wrap = openSheet(`<h2 class="sheet-title">Notifications</h2>
-      ${items.length ? `<div class="menu">${items.map((n, i) => { const [t, text, href] = (KIND[n.kind] || (() => [n.kind, "", ""]))(n); return `<button class="menu-item ${n.read_at ? "" : "unread"}" data-n="${i}"><span class="mi-text"><span class="mi-label">${h(t)}</span><span class="mi-sub">${h(text)} · ${since(n.created_at)}</span></span></button>`; }).join("")}</div>` : `<p class="muted">Rien de nouveau.</p>`}`);
+      ${items.length ? `<div class="menu">${items.map((n, i) => { const [t, text, href] = (KIND[n.kind] || (() => [n.kind, "", ""]))(n); return `<button class="menu-item ${n.read_at ? "" : "unread"}" data-n="${i}"><span class="mi-text"><span class="mi-label">${h(t)}</span><span class="mi-sub">${h(text)} · ${since(n.created_at)}</span></span></button>`; }).join("")}</div>` : `<p class="muted">Rien de nouveau.</p>`}`, { cls: "notifs" });
     $$("[data-n]", wrap).forEach((b) => (b.onclick = () => {
       const n = items[+b.dataset.n];
       const href = (KIND[n.kind] || (() => ["", "", ""]))(n)[2];

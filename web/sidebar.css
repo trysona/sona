@@ -147,6 +147,8 @@
   .tabbar button[aria-current="page"], .tabbar button.active { color: var(--accent); }
 }
 .more-sheet .sb-link { height: 52px; color: var(--text); }
+/* La page courante est une pastille claire : son texte doit rester sombre. */
+.more-sheet .sb-link.active { color: var(--on-accent, #0a0a0b); }
 .more-sheet .sb-title { height: 32px; }
 .more-sheet .sb-title::after { display: none; }
 .more-sheet .sb-title span { opacity: 1; }

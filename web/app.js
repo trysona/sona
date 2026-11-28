@@ -77,6 +77,9 @@ function setLook(patch) {
 }
 applyLook();
 /** Pochette en grand (Deezer : taille dans l'adresse). */
+// Image absente ou introuvable : un point transparent, pour garder sa place et son fond sans l'icône « image cassée ».
+const BLANK = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+document.addEventListener("error", (e) => { if (e.target.tagName === "IMG" && e.target.getAttribute("src") !== BLANK) e.target.src = BLANK; }, true);
 const big = (url, size = 1000) => (url || "").replace(/\/(\d+)x\1(-\d+-\d+-\d+-\d+)?\.jpg$/, `/${size}x${size}$2.jpg`);
 const sameTrack = (a, b) => a && b && a.source === b.source && a.source_id === b.source_id;
 const trackKey = (t) => `${t.source}:${t.source_id}`;
@@ -2288,6 +2291,9 @@ async function viewLibrary(kind) {
   if (!LIB_KINDS.some(([k]) => k === kind)) kind = "playlists";
   const seg = `<nav class="segmented lib-tabs" aria-label="Bibliothèque">${LIB_KINDS.map(([k, label, icon]) => `<a href="#/library/${k}" ${k === kind ? 'class="on" aria-current="page"' : ""}>${icons[icon]}${label}</a>`).join("")}</nav>`;
   $("#content").innerHTML = page(`<h1 class="page-title">Bibliothèque</h1>${seg}<div class="loading-row"><span class="spinner"></span></div>`);
+  // Sur téléphone les onglets défilent : celui de la page doit se voir.
+  const showTab = () => $(".lib-tabs .on")?.scrollIntoView({ inline: "center", block: "nearest" });
+  setTimeout(showTab, 400);
   let body = "";
   if (kind === "playlists") {
     const [playlists, smart] = await Promise.all([api("/me/playlists").catch(() => []), api(`/smart?tz=${encodeURIComponent(tz())}`).catch(() => [])]);

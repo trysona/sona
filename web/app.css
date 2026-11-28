@@ -398,7 +398,7 @@ input[type="range"].slider::-moz-range-thumb { width: 12px; height: 12px; border
 /* ── Lecteur plein écran ──────────────────────────────────────────────── */
 
 .np {
-  position: fixed; inset: 0; z-index: 30; color: #fff; display: grid; grid-template-rows: auto 1fr;
+  position: fixed; inset: 0; z-index: 40; color: #fff; display: grid; grid-template-rows: auto 1fr;
   opacity: 0; pointer-events: none; transform: translateY(24px) scale(.985);
   transition: opacity .4s var(--ease), transform .5s var(--ease);
   background: #111;
@@ -1698,6 +1698,8 @@ input[type="range"].slider::-webkit-slider-thumb { background: var(--accent); }
 /* En-tête d'album, de playlist, d'artiste */
 .hero { grid-template-columns: 280px 1fr; gap: var(--s-8); padding: var(--s-4) 0 var(--s-7); align-items: end; }
 .hero-art { width: 280px; height: 280px; border-radius: var(--r-card); box-shadow: none; }
+/* Un titre interminable ne repousse pas toute la page : trois lignes, puis « … ». */
+.hero h1 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
 .hero .kind { letter-spacing: 0.1em; color: var(--text-2); }
 .hero h1 { font-size: 48px; font-weight: 700; letter-spacing: -0.04em; margin: var(--s-3) 0 var(--s-2); }
 .hero .by { font-size: 20px; color: var(--text-2); font-weight: 500; }
@@ -1775,7 +1777,8 @@ input[type="range"].slider::-webkit-slider-thumb { background: var(--accent); }
   .radio-card .play-fab { display: none; }
   .hero { grid-template-columns: 1fr; gap: var(--s-5); }
   .hero-art { width: min(260px, 72vw); height: auto; aspect-ratio: 1; }
-  .hero h1 { font-size: 34px; }
+  .hero h1 { font-size: 28px; }
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-5) var(--s-4); }
   .login-card { padding: var(--s-7) var(--s-5) var(--s-6); }
   .tabbar button.active { background: var(--accent-soft); color: var(--accent); box-shadow: none; }
 }
