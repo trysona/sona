@@ -29,7 +29,7 @@ struct EncreApp: App {
         WindowGroup {
             ZStack {
                 // L'app reste telle quelle (aucune transformation ni animation sur elle : elles
-                // faisaient « zoomer » ses écrans) ; l'écran de démarrage se fond par-dessus.
+                // faisaient « zoomer » ses écrans) ; l'écran de démarrage s'ouvre par-dessus.
                 AppGate()
                 if showsSplash {
                     LaunchSplashView(leaving: splashLeaving)
@@ -46,9 +46,9 @@ struct EncreApp: App {
                 while launchAuth.state == .checking, Date().timeIntervalSince(started) < 6 {
                     try? await Task.sleep(for: .milliseconds(150))
                 }
-                // Sortie en deux temps : le zoom (0,45 s), puis on retire la vue.
+                // Sortie en deux temps : la plongée dans le logo, puis on retire la vue.
                 splashLeaving = true
-                try? await Task.sleep(for: .milliseconds(500))
+                try? await Task.sleep(for: .seconds(LaunchSplashView.exitSeconds + 0.05))
                 showsSplash = false
             }
         }
@@ -83,7 +83,7 @@ struct AppGate: View {
             case .rejected(let account):
                 AccessPendingView(account: account, rejected: true).transition(.opacity)
             case .approved:
-                RootTabView().transition(.opacity.combined(with: .scale(scale: 0.98)))
+                RootTabView().transition(.opacity)
             }
         }
         .animation(Motion.smooth, value: auth.state)
