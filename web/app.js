@@ -7435,12 +7435,13 @@ function viewAppearance() {
   setTimeout(bindAppearance);
   return page(`<h1 class="page-title">Apparence</h1>
     <p class="page-sub">Choisis la couleur et les formes de Sona. Les changements sont immédiats et restent sur cet appareil.</p>
+    <div class="look-preview" aria-hidden="true"><i></i><span><b>Aperçu</b><small>La couleur et les formes choisies</small></span><em>${icons.play}</em></div>
     <h3 class="set-head">Couleur</h3><div class="look-accents">${accents}</div>
     <h3 class="set-head">Interface</h3><div class="set-group">
       <label class="switch-row"><span><b>Teinte de la pochette</b><small>Les pages d'album, de playlist et d'artiste prennent la couleur de leur pochette.</small></span><input type="checkbox" data-look-tint ${look.tint ? "checked" : ""}><i></i></label>
       <div class="set-row look-seg"><span class="set-text"><b>Formes</b><small>Les coins des cartes, des panneaux et des boutons.</small></span><span class="chips">${chip("shape", "arrondi", "Arrondies", look.shape === "arrondi")}${chip("shape", "net", "Nettes", look.shape === "net")}</span></div>
-      <div class="set-row look-seg"><span class="set-text"><b>Menu</b><small>Rail d'icônes ou panneau ouvert, retenu sur cet appareil (Ctrl/⌘ + B). Auto : ouvert sur grand écran.</small></span><span class="chips">${chip("menu", "auto", "Auto", !look.menu)}${chip("menu", "rail", "Rail", look.menu === "rail")}${chip("menu", "ouvert", "Ouvert", look.menu === "ouvert")}</span></div>
-      <label class="switch-row"><span><b>Déplier au survol</b><small>Menu en rail : passer la souris dessus le déplie par-dessus la page, sans la décaler.</small></span><input type="checkbox" data-look-hover ${look.hover !== false ? "checked" : ""}><i></i></label>
+      <div class="set-row look-seg look-wide-only"><span class="set-text"><b>Menu</b><small>Rail d'icônes ou panneau ouvert, retenu sur cet appareil (Ctrl/⌘ + B). Auto : ouvert sur grand écran.</small></span><span class="chips">${chip("menu", "auto", "Auto", !look.menu)}${chip("menu", "rail", "Rail", look.menu === "rail")}${chip("menu", "ouvert", "Ouvert", look.menu === "ouvert")}</span></div>
+      <label class="switch-row look-wide-only"><span><b>Déplier au survol</b><small>Menu en rail : passer la souris dessus le déplie par-dessus la page, sans la décaler.</small></span><input type="checkbox" data-look-hover ${look.hover !== false ? "checked" : ""}><i></i></label>
     </div>
     <h3 class="set-head">Paroles</h3><div class="set-group">
       <label class="switch-row"><span><b>Défilement automatique</b><small>Les paroles suivent le titre et se recentrent toutes seules.</small></span><input type="checkbox" data-look-lyrauto ${look.lyrAuto ? "checked" : ""}><i></i></label>
@@ -7517,7 +7518,7 @@ async function viewSettings() {
     </div>
 
     <h3 class="set-head">Apparence</h3><div class="set-group">
-      ${linkRow('href="#/appearance"', icons.sparkles, "Apparence", "Logo, couleur, formes et menu")}
+      ${linkRow('href="#/appearance"', icons.sparkles, "Apparence", "Couleur, formes, menu et paroles")}
     </div>
 
     <h3 class="set-head">Compte</h3><div class="set-group">
