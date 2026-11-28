@@ -394,6 +394,11 @@ async fn login(email: String, password: String) -> Result<AppleAccount, String> 
             break;
         }
         let raw = LAST_RAW_ERROR.lock().unwrap().clone();
+        // iCloud a fourni le code de ce PC et Apple refuse quand même : les serveurs publics n'y changeraient
+        // rien (Apple les rejette), et chaque essai de plus rapproche le blocage de l'adresse.
+        if *server == LOCAL_ANISETTE && !raw.starts_with("anisette locale") {
+            break;
+        }
         if !is_anisette_failure(&raw) || i + 1 == ANISETTE_SERVERS.len() {
             break;
         }
@@ -407,6 +412,11 @@ async fn login(email: String, password: String) -> Result<AppleAccount, String> 
         emit("signed-in", json!({ "email": email }));
     }
     if let Err(message) = &result {
+        if is_apple_block(&LAST_RAW_ERROR.lock().unwrap()) {
+            // Apple bloque ce PC : une pause évite de prolonger le blocage à force d'essayer.
+            set_apple_cooldown(&email, 30 * 60);
+            return Err(format!("{message} Sona attend 30 min avant de réessayer (insister prolonge le blocage). En attendant, « Enregistrer l'app » puis installe-la avec Sideloadly ou AltServer."));
+        }
         if message.contains("429") || message.contains("Too Many Requests") || message.starts_with("Apple limite les tentatives") {
             let seconds = 10 * 60;
             set_apple_cooldown(&email, seconds);
@@ -437,6 +447,13 @@ fn is_anisette_failure(message: &str) -> bool {
     let apple_503 = (lower.contains("grandslam") || lower.contains("gsa.apple.com"))
         && (lower.contains("503") || lower.contains("service temporarily unavailable"));
     apple_503 || ["anisette", "not provisioned", "-45061", "reprovision"].iter().any(|n| lower.contains(n))
+}
+
+/// Refus d'Apple qui vise ce PC ou ce réseau (pas le mot de passe) : insister l'aggrave.
+fn is_apple_block(message: &str) -> bool {
+    let lower = message.to_lowercase();
+    let grandslam_503 = (lower.contains("grandslam") || lower.contains("gsa.apple.com")) && lower.contains("503");
+    grandslam_503 || lower.contains("-80045") || lower.contains("-22411")
 }
 
 /// Oublie l'identité anisette gardée par isideload dans le coffre Windows (au mieux).
@@ -869,6 +886,14 @@ mod anisette_fallback_tests {
         assert!(is_anisette_failure(apple_503));
         assert!(is_anisette_failure("Failed to get anisette headers → not provisioned for this server (-45061); reprovision required"));
         assert!(is_anisette_failure("reqwest::Error { kind: Status(522) } https://ani.stikstore.app/v3/get_headers anisette"));
+    }
+
+    #[test]
+    fn apple_blocks_are_recognised_and_paused() {
+        assert!(is_apple_block("AuthWithMessage(-80045, \"This action cannot be completed at this time.\")"));
+        assert!(is_apple_block("Status(503) url: https://gsa.apple.com/grandslam/GsService2"));
+        assert!(!is_apple_block("-22406 incorrect password"));
+        assert!(!is_apple_block("522 https://ani.stikstore.app"));
     }
 
     #[test]

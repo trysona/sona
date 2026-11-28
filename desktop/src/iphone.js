@@ -237,6 +237,16 @@ const actions = {
     await install(udid, { ipaUrl: latest.url });
     toast(`Sona ${latest.version} installée`, "L'iPhone est à jour.");
   },
+  /** La dernière app iPhone dans Téléchargements, pour l'installer avec Sideloadly, AltServer ou SideStore. */
+  async saveIpa() {
+    const latest = model.latest || (await checkLatest());
+    if (!latest) throw new Error("Impossible de trouver la dernière version de Sona pour iPhone. Vérifie ta connexion Internet.");
+    const res = await net.fetch(latest.url);
+    if (!res.ok) throw new Error(`Téléchargement impossible (code ${res.status}).`);
+    const file = path.join(app.getPath("downloads"), `Sona-${String(latest.version).replace(/[^\w.-]/g, "")}.ipa`);
+    await fs.promises.writeFile(file, Buffer.from(await res.arrayBuffer()));
+    return file;
+  },
   async forgetApp({ udid }) { await call("app_forget", { app: APP_ID, udid }); await refresh({ devices: false }); },
   setAuto({ auto }) { settings.set("iphoneAuto", !!auto); update({ auto: !!auto }); if (auto) autoPass().catch(() => {}); },
   logs() {

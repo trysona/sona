@@ -139,6 +139,9 @@ app.whenReady().then(async () => {
     permission === "media" ? String(origin || wc?.getURL() || "").startsWith("app://sona") : true);
   iphone.init({ onState: (s) => send("desktop:iphone", s), onNotify: notifyDesktop });
   updater.init({ onState: (s) => send("desktop:updates", s), onNotify: notifyDesktop, onBeforeInstall: () => { quitting = true; } });
+  // Réseau pas encore revenu juste au réveil : on laisse quelques secondes.
+  powerMonitor.on("resume", () => setTimeout(() => updater.maybeCheck(), 10_000));
+  app.on("browser-window-focus", () => updater.maybeCheck());
   nativeTheme.on("updated", () => {
     send("desktop:theme", nativeTheme.shouldUseDarkColors);
     updateTray(true);
@@ -791,7 +794,11 @@ ipcMain.handle("desktop:status", () => {
 
 // ── Onglet iPhone et mises à jour ─────────────────────────────────────
 
-ipcMain.handle("desktop:iphone", (_e, name, args) => iphone.action(String(name), args || {}));
+ipcMain.handle("desktop:iphone", async (_e, name, args) => {
+  const out = await iphone.action(String(name), args || {});
+  if (name === "saveIpa") shell.showItemInFolder(out); // le fichier, prêt à glisser dans Sideloadly
+  return out;
+});
 ipcMain.handle("desktop:iphone-state", () => iphone.snapshot());
 ipcMain.handle("desktop:iphone-pick", async () => {
   const picked = await dialog.showOpenDialog(win, { title: "Choisir l'app pour l'iPhone", filters: [{ name: "App iPhone", extensions: ["ipa"] }], properties: ["openFile"] });

@@ -8298,7 +8298,8 @@ function iphoneInit() {
   desktop.onIphone((model) => { iph.state = model; iphoneChanged(); });
   desktop.iphoneState().then((model) => { iph.state = model; iphoneChanged(); }).catch(() => {});
   desktop.onOpen((hash) => { if (account) location.hash = hash; });
-  desktop.onUpdates((model) => renderUpdates(model));
+  desktop.onUpdates((model) => { renderUpdates(model); updatePill(model); });
+  desktop.updates?.("state").then(updatePill).catch(() => {});
 }
 
 /** Rafraîchit ce qui dépend de l'état iPhone : pastille, page ouverte, fenêtre de code. */
@@ -8432,7 +8433,8 @@ function iphoneBody() {
       <section class="iph-card"><div class="iph-card-head"><h3>Automatique</h3></div>
         <div class="set-group flat">${toggleRow("iph-auto", "Mises à jour et renouvellement automatiques", "Sona installe chaque nouvelle version et renouvelle l'app deux jours avant qu'elle expire, dès que l'iPhone est branché ou sur le même Wi-Fi. Sinon, un rappel la veille.", m.auto)}</div>
         <p class="iph-note muted">${m.latest ? `Dernière version : Sona ${esc(m.latest.version)}` : "Dernière version inconnue"}${m.lastCheck ? ` · vérifié ${esc(since(new Date(m.lastCheck).toISOString()))}` : ""}</p>
-        <div class="iph-card-foot"><button class="btn ghost" data-iph="check" ${m.checking ? "disabled" : ""}>${m.checking ? "Recherche…" : "Rechercher une mise à jour"}</button></div>
+        <div class="iph-card-foot"><button class="btn ghost" data-iph="check" ${m.checking ? "disabled" : ""}>${m.checking ? "Recherche…" : "Rechercher une mise à jour"}</button>
+          <button class="btn ghost" data-iph="saveIpa">${icons.download} Enregistrer l'app (.ipa)</button></div>
       </section>
       <section class="iph-card iph-help"><div class="iph-card-head"><h3>Première installation</h3></div>
         <ol class="steps">
@@ -8461,6 +8463,7 @@ function bindIphone() {
     const act = target("[data-iph]")?.dataset.iph;
     if (act === "refresh") return run("refresh");
     if (act === "check") return run("check");
+    if (act === "saveIpa") return run("saveIpa", {}, "App enregistrée dans Téléchargements");
     if (act === "install") return run("install", { udid });
     if (act === "update") return run("update", { udid });
     if (act === "renew") return run("renew", { udid });
@@ -8576,7 +8579,7 @@ async function renderUpdates(model) {
       !m?.available ? "Module iPhone absent de cette version"
       : iphoneApp ? `${esc(iphoneApp.version || "?")} sur ${esc(iphoneApp.deviceName || "l'iPhone")}${iphoneUpd ? ` · ${esc(iphoneUpd.version)} disponible` : " · à jour"}${iphoneApp.expiresAt ? ` · expire ${esc(new Date(iphoneApp.expiresAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }))}` : ""}`
       : m?.latest ? `Pas encore installée · dernière version ${esc(m.latest.version)}` : "Pas encore installée"}</small></span>${icons.right}</a>
-    ${toggleRow("upd-check", "Rechercher automatiquement", "Au démarrage puis toutes les 6 heures, pour Windows et pour l'iPhone.", u.autoCheck)}
+    ${toggleRow("upd-check", "Rechercher automatiquement", "Au démarrage, au réveil du PC puis toutes les heures.", u.autoCheck)}
     ${u.portable ? "" : toggleRow("upd-install", "Installer sans demander", "Sona se met à jour tout seul et redémarre (la musique reprend où elle en était sur l'iPhone si tu changes d'appareil).", u.autoInstall)}
     <div class="set-row"><span class="set-text">${u.error ? `<small class="iph-error">${esc(u.error)}</small>` : `<small>Les nouvelles versions arrivent à chaque mise à jour de Sona.</small>`}</span>
       <button class="btn ghost small" data-upd="check" ${u.checking || m?.checking ? "disabled" : ""}>Rechercher</button></div>`;
@@ -8588,6 +8591,17 @@ async function renderUpdates(model) {
   };
   $('[data-setting="upd-check"]', box).onchange = (e) => desktop.updates("updatesCheck", e.target.checked);
   $('[data-setting="upd-install"]', box)?.addEventListener("change", (e) => desktop.updates("updatesInstall", e.target.checked));
+}
+
+/** Nouvelle version de l'app Windows : une pastille qu'on voit, plutôt qu'au fond des Réglages. */
+function updatePill(u) {
+  let pill = $(".upd-pill");
+  if (!u?.available) return pill?.remove();
+  if (!pill) { pill = document.createElement("button"); pill.className = "upd-pill"; document.body.append(pill); }
+  pill.disabled = u.downloading != null;
+  pill.textContent = u.downloading != null ? `Mise à jour… ${Math.round(u.downloading * 100)} %`
+    : `Sona ${u.latest.version} est là · ${u.portable ? "Télécharger" : "Mettre à jour"}`;
+  pill.onclick = () => desktop.updates("install").catch((e) => toast(deskErr(e)));
 }
 
 desktopInit();

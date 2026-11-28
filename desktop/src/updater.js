@@ -22,7 +22,8 @@ const { compareVersions } = require("./iphone");
 
 const MANIFEST_URL = "https://github.com/trysona/sona/releases/download/windows/latest.json";
 const RELEASE_PAGE = "https://github.com/trysona/sona/releases/tag/windows";
-const EVERY = 6 * 3_600_000;
+const EVERY = 3_600_000;
+const AGAIN = 15 * 60_000; // au retour sur le PC ou sur la fenêtre : pas plus souvent que ça
 
 const portable = !!process.env.PORTABLE_EXECUTABLE_FILE;
 
@@ -121,6 +122,12 @@ async function install() {
   }
 }
 
+/** Réveil du PC, fenêtre rouverte : on revérifie si la dernière recherche date un peu. */
+function maybeCheck() {
+  if (!app.isPackaged || settings.get("updatesCheck") === false) return;
+  if (!model.lastCheck || Date.now() - model.lastCheck > AGAIN) check();
+}
+
 function setOption(key, value) {
   settings.set(key, !!value);
   update({});
@@ -131,10 +138,10 @@ function init({ onState, onNotify, onBeforeInstall }) {
   notify = onNotify;
   beforeInstall = onBeforeInstall;
   if (!app.isPackaged) return;
-  setTimeout(() => settings.get("updatesCheck") !== false && check(), 20_000);
+  setTimeout(() => settings.get("updatesCheck") !== false && check(), 5_000);
   setInterval(() => settings.get("updatesCheck") !== false && check(), EVERY);
 }
 
 const snapshot = () => ({ ...model, autoCheck: settings.get("updatesCheck") !== false, autoInstall: !!settings.get("updatesInstall") });
 
-module.exports = { init, check, install, setOption, snapshot, RELEASE_PAGE };
+module.exports = { init, check, maybeCheck, install, setOption, snapshot, RELEASE_PAGE };
