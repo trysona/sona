@@ -113,7 +113,22 @@ async def require_token(deps: ApiDeps = Depends(identify)) -> ApiDeps:
     return deps
 
 
+def is_owner(deps: ApiDeps) -> bool:
+    """Le propriétaire de Sona : un administrateur qui est le compte `SONA_OWNER_UID` (ou l'ancien jeton du
+    serveur). Sans ce réglage, tout administrateur."""
+    owner = deps.settings.owner_uid
+    if not deps.is_admin or not owner:
+        return deps.is_admin
+    return deps.account is None or (deps.account.supabase_uid or "").lower() == owner
+
+
 async def require_admin(deps: ApiDeps = Depends(require_token)) -> ApiDeps:
     if not deps.is_admin:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Réservé aux administrateurs.")
+    return deps
+
+
+async def require_owner(deps: ApiDeps = Depends(require_admin)) -> ApiDeps:
+    if not is_owner(deps):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Réservé au propriétaire de Sona.")
     return deps

@@ -160,6 +160,8 @@ const BASE = onServer ? "" : SERVER;
     l'utilise dans l'adresse du flux, qui ne peut pas porter d'en-tête). */
 let token = null;
 let account = null;
+/** Outils de lecture (mauvaise version, diagnostic, santé) : le propriétaire seul. */
+const isOwner = () => !!(account?.is_owner ?? account?.is_admin);
 const audio = $("#audio");
 const state = {
   queue: [], index: -1, name: "", shuffle: false, repeat: false,
@@ -6184,8 +6186,8 @@ function trackMenu(t, ctx = null, index = -1) {
     playing && { icon: icons.sparkles, label: "Réagir à cet instant", sub: "Tes amis verront ta réaction à ce moment du titre", run: () => addMoment(t) },
     playing && { icon: icons.moon, label: sleep.until ? `Minuteur : ${sleepLabel()}` : "Minuteur de sommeil", run: sleepMenu },
     playing && { icon: icons.tv, label: "Diffuser sur la TV ou la PS5", run: openCast },
-    playing && account?.is_admin && t.source !== "upload" && { icon: icons.flag, label: "Mauvaise version ?", sub: "Clip, live, remix… : une autre source est cherchée", run: () => reportWrongVersion(t) },
-    account?.is_admin && { icon: icons.pulse, label: "Diagnostic de lecture", sub: "Ce que le serveur trouve pour ce titre, et pourquoi il l'écarte", run: () => diagnoseTrack(t) },
+    playing && isOwner() && t.source !== "upload" && { icon: icons.flag, label: "Mauvaise version ?", sub: "Clip, live, remix… : une autre source est cherchée", run: () => reportWrongVersion(t) },
+    isOwner() && { icon: icons.pulse, label: "Diagnostic de lecture", sub: "Ce que le serveur trouve pour ce titre, et pourquoi il l'écarte", run: () => diagnoseTrack(t) },
     t.source === "upload" && { icon: icons.trash, label: "Supprimer ce fichier", danger: true, run: () => deleteUpload(t) },
     entry && ctx.playlist?.can_edit && { icon: icons.trash, label: "Retirer de cette playlist", danger: true, run: async () => {
       await api(`/me/playlists/${ctx.playlist.id}/tracks/${entry.entry_id}`, { method: "DELETE" });
@@ -7518,7 +7520,7 @@ async function viewSettings() {
 
     ${me.is_staff ? `<h3 class="set-head">Administration</h3><div class="set-group">
       ${linkRow('href="#/admin"', icons.lock, "Modération", "Signalements, utilisateurs, sanctions")}
-      ${me.is_admin ? linkRow('href="#/health"', icons.pulse, "Santé de la lecture", "Cookies YouTube, yt-dlp") : ""}
+      ${(me.is_owner ?? me.is_admin) ? linkRow('href="#/health"', icons.pulse, "Santé de la lecture", "Cookies YouTube, yt-dlp") : ""}
     </div>` : ""}
 
     <h3 class="set-head">Serveur</h3><div class="set-group">

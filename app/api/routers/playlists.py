@@ -14,7 +14,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api import limits
-from app.api.auth import require_token
+from app.api.auth import require_token, is_owner
 from app.api.routers import stream
 from app.api.schemas import (
     ImportFixIn,
@@ -187,7 +187,7 @@ async def fix_import_item(
 
 
 async def _fix_with_link(deps: ApiDeps, playlist: Playlist, item_id: int, url: str):
-    """Lien YouTube / SoundCloud collé pour un titre importé. Pour un admin,
+    """Lien YouTube / SoundCloud collé pour un titre importé. Pour le propriétaire,
     sur un titre du catalogue : le lien devient la source audio du titre
     (comme « Choisir la source » du diagnostic), pour tout le monde — la
     fiche, les paroles et la radio restent. Sinon : le titre du lien prend
@@ -196,7 +196,7 @@ async def _fix_with_link(deps: ApiDeps, playlist: Playlist, item_id: int, url: s
     if item is None:
         raise playlist_import.PlaylistImportError("Ce titre n'est pas dans le rapport d'import.")
     matched = item.matched
-    if deps.is_admin and matched is not None and matched.source not in ("youtube", "soundcloud"):
+    if is_owner(deps) and matched is not None and matched.source not in ("youtube", "soundcloud"):
         try:
             video_id = await source_from_url(url)
         except ResolutionError as exc:

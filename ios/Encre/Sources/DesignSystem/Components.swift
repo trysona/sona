@@ -142,7 +142,7 @@ struct TrackRow: View {
                     }
                 }
             }
-            if !track.isExclusive, AuthManager.shared.account?.isAdmin == true {
+            if !track.isExclusive, AuthManager.shared.account?.managesPlayback == true {
                 Button { showsDiagnostic = true } label: { Label("Diagnostic de lecture", systemImage: "waveform.path.ecg") }
             }
             Button { showsCredits = true } label: { Label("Crédits du titre", systemImage: "list.bullet.rectangle") }

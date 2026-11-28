@@ -162,7 +162,7 @@ struct SettingsView: View {
                     Text(downloadsSummary + "\nIntelligents : la nuit (Wi-Fi, en charge) et à l'ouverture en Wi-Fi, ton Mix du jour, « En boucle » et tes playlists hors ligne sont téléchargés d'avance.")
                 }
 
-                if account.isAdmin {
+                if account.managesPlayback {
                     Section {
                         NavigationLink {
                             StreamingHealthView()

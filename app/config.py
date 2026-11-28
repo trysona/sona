@@ -85,6 +85,8 @@ class Settings:
     # Valeurs PUBLIQUES du projet Supabase (adresse + clé « anon »), données aux apps natives via GET /auth/config.
     supabase_url: str | None = None
     supabase_anon_key: str | None = None
+    # UUID Supabase du propriétaire : lui seul gère la lecture (vide : tous les administrateurs).
+    owner_uid: str | None = None
     # Karaoké (app/services/karaoke.py) : pistes voix / instru séparées par
     # IA, gardées dans `karaoke_dir` (les plus anciennes supprimées au-delà
     # de la taille max), et modèle de séparation téléchargé dans
@@ -207,6 +209,7 @@ def load_settings() -> Settings:
         sona_internal_secret=os.getenv("INTERNAL_API_SECRET", "").strip() or None,
         supabase_url=os.getenv("SUPABASE_URL", "").strip().rstrip("/") or None,
         supabase_anon_key=os.getenv("SUPABASE_ANON_KEY", "").strip() or None,
+        owner_uid=os.getenv("SONA_OWNER_UID", "").strip().lower() or None,
         admin_lastfm_users=frozenset(
             name.strip().casefold()
             for name in (os.getenv("ADMIN_LASTFM_USERS") or os.getenv("LASTFM_USER") or "").split(",")

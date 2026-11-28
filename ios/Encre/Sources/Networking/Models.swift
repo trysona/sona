@@ -786,12 +786,16 @@ struct AppAccount: Codable, Identifiable, Hashable {
     var shareListening: Bool?
     /// Compte Sona (et non un ancien compte Last.fm). Absent des anciens serveurs.
     var sona: Bool?
+    /// Propriétaire de Sona. Absent des anciens serveurs : les administrateurs en tiennent lieu.
+    var isOwner: Bool?
+    var managesPlayback: Bool { isOwner ?? isAdmin }
 
     enum CodingKeys: String, CodingKey {
         case id, username, status, sona
         case displayName = "display_name"
         case avatarURL = "avatar_url"
         case isAdmin = "is_admin"
+        case isOwner = "is_owner"
         case scrobbleToLastfm = "scrobble_to_lastfm"
         case createdAt = "created_at"
         case shareListening = "share_listening"

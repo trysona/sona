@@ -1031,7 +1031,7 @@ struct PlayerActionsMenu: UIViewRepresentable, Equatable {
             }
             main.append(UIMenu(title: "Exclu", image: UIImage(systemName: "sparkles"), children: exclusive))
         }
-        if !track.isExclusive, AuthManager.shared.account?.isAdmin == true {
+        if !track.isExclusive, AuthManager.shared.account?.managesPlayback == true {
             main.append(item("Diagnostic de lecture", "waveform.path.ecg") { actions.showDiagnostic(track) })
         }
         main.append(UIMenu(title: "Réagir et partager", image: UIImage(systemName: "square.and.arrow.up"), children: [
@@ -1091,13 +1091,16 @@ struct PlayerActionsMenu: UIViewRepresentable, Equatable {
                 actions.openRoute(.album(source: track.source, id: albumId))
             })
         }
-        return UIMenu(children: [
+        var groups = [
             UIMenu(options: .displayInline, children: main),
             UIMenu(options: .displayInline, children: navigation),
-            UIMenu(options: .displayInline, children: [
+        ]
+        if AuthManager.shared.account?.managesPlayback == true {
+            groups.append(UIMenu(options: .displayInline, children: [
                 item("Mauvaise version ?", "exclamationmark.bubble") { actions.reportWrongVersion(track) },
-            ]),
-        ])
+            ]))
+        }
+        return UIMenu(children: groups)
     }
 }
 

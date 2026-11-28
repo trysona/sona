@@ -9,7 +9,7 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
 from app.api import limits
-from app.api.auth import bearer_token, get_deps, identify, require_admin
+from app.api.auth import bearer_token, get_deps, identify, is_owner, require_admin
 from app.api.state import ApiDeps
 from app.db.repository import Account
 from app.providers.lastfm_auth import APP_CALLBACK, AUTH_URL, LastfmAuthError
@@ -32,6 +32,8 @@ class AccountOut(BaseModel):
     share_listening: bool = True
     # Compte Sona (pas un ancien compte Last.fm) : les apps ne l'annoncent pas comme « Last.fm · … ».
     sona: bool = False
+    # Propriétaire : lui seul voit les outils de lecture. Rempli seulement pour sa propre fiche (`/auth/me`).
+    is_owner: bool = False
 
     @classmethod
     def from_account(cls, a: Account) -> "AccountOut":
@@ -74,7 +76,7 @@ def _legacy_account(deps: ApiDeps) -> AccountOut:
     """L'ancien jeton unique (API_TOKEN) : administrateur sans compte Last.fm."""
     return AccountOut(
         id=None, username=deps.settings.lastfm_user or "admin", display_name="Administrateur", avatar_url=None,
-        status="approved", is_admin=True, scrobble_to_lastfm=False, created_at=None,
+        status="approved", is_admin=True, scrobble_to_lastfm=False, created_at=None, is_owner=True,
     )
 
 
@@ -198,7 +200,9 @@ async def link_legacy(payload: LinkLegacyIn, deps: ApiDeps = Depends(identify)) 
 async def me(deps: ApiDeps = Depends(identify)) -> AccountOut:
     """Accessible même en attente : l'app s'en sert pour savoir si l'accès a
     été accordé."""
-    return AccountOut.from_account(deps.account) if deps.account else _legacy_account(deps)
+    if deps.account is None:
+        return _legacy_account(deps)
+    return AccountOut.from_account(deps.account).model_copy(update={"is_owner": is_owner(deps)})
 
 
 @router.put("/auth/me", response_model=AccountOut)
@@ -211,7 +215,8 @@ async def update_me(payload: MeUpdate, deps: ApiDeps = Depends(identify)) -> Acc
         await deps.repo.set_account_sharing(deps.account.id, payload.share_listening)
         if not payload.share_listening:
             presence.clear(deps.user_id)
-    return AccountOut.from_account(await deps.repo.account_by_id(deps.account.id))
+    updated = AccountOut.from_account(await deps.repo.account_by_id(deps.account.id))
+    return updated.model_copy(update={"is_owner": is_owner(deps)})
 
 
 @router.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT, response_model=None)

@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from starlette.background import BackgroundTask
 
 from app.api import limits
-from app.api.auth import require_admin, require_token
+from app.api.auth import require_owner, require_token
 from app.api.routers import uploads
 from app.api.state import ApiDeps
 from app.services import lookup
@@ -667,7 +667,7 @@ async def stream(
 
 
 @router.post("/stream/{source}/{source_id}/wrong-version")
-async def wrong_version(source: str, source_id: str, deps: ApiDeps = Depends(require_admin)) -> dict:
+async def wrong_version(source: str, source_id: str, deps: ApiDeps = Depends(require_owner)) -> dict:
     """« Mauvaise version ? » dans l'app (clip avec bruitages, live, autre
     enregistrement...) : la source servie pour ce morceau est écartée pour
     de bon, son fichier en cache supprimé, et la prochaine lecture en

@@ -3,6 +3,7 @@ d'écoute, routes internes, rattachement d'un ancien compte, scrobbling. Le serv
 
 from __future__ import annotations
 
+import dataclasses
 from pathlib import Path
 
 import pytest
@@ -100,6 +101,22 @@ def test_roles_come_from_the_accounts_service(client):
     assert client.get("/auth/me", headers=admin).json()["is_admin"] is True
     assert client.get("/auth/me", headers=user).json()["is_admin"] is False
     assert client.get("/admin/accounts", headers=user).status_code == 403
+
+
+def test_playback_tools_belong_to_the_owner_alone(client):
+    boss, other = person(client, "boss", "admin"), person(client, "second", "admin")
+    # Sans `SONA_OWNER_UID`, tout administrateur ; avec, seulement le propriétaire (et l'ancien jeton du serveur).
+    assert client.get("/admin/streaming", headers=other).status_code == 200
+    client.deps.settings = dataclasses.replace(client.deps.settings, owner_uid="uid-boss")
+    assert client.get("/auth/me", headers=boss).json()["is_owner"] is True
+    assert client.get("/auth/me", headers=other).json()["is_owner"] is False
+    assert client.get("/auth/me", headers=LEGACY).json()["is_owner"] is True
+    assert client.get("/admin/streaming", headers=boss).status_code == 200
+    assert client.get("/admin/streaming", headers=other).status_code == 403
+    assert client.post("/stream/deezer/1/wrong-version", headers=other).status_code == 403
+    assert client.post("/admin/diagnose/deezer/1/unreject", headers=other).status_code == 403
+    # Les autres droits d'administrateur ne bougent pas.
+    assert client.get("/admin/accounts", headers=other).status_code == 200
 
 
 # -- Plus de « tout le monde est ami » ---------------------------------------
