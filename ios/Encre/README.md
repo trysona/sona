@@ -5,7 +5,7 @@ Usage strictement personnel, comme le reste du projet.
 
 L'app s'appelle **Sona** sur l'iPhone (nom affiché et icône) ; le projet
 Xcode garde son nom interne `Encre` (dossier `ios/Encre`, cible `Encre`), sans
-effet visible. Icône (`AppIcon.png`) et logo de lancement (`LaunchLogo.png`) : le pack de logos « Fin » ; le « S » dessiné en SwiftUI (`SonaMark`) en vient aussi.
+effet visible. Icône (`AppIcon.png`) : le pack de logos « Fin » ; le « S » dessiné en SwiftUI (`SonaMark`) en vient aussi. L'animation d'ouverture est l'intro du site (police Familjen Grotesk).
 
 ## Direction artistique
 

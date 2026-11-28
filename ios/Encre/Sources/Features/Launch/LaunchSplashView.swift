@@ -1,121 +1,109 @@
 import SwiftUI
 
-/// Animation d'ouverture. Elle commence comme l'écran de lancement système (même « S », 72 pt, au centre de
-/// l'écran) : le « S » se ramasse, grandit, bat en tranches comme un égaliseur, se recale d'un coup (onde et
-/// vibration), puis « Sona » monte lettre par lettre. Avec `leaving`, le « S » fonce vers l'écran et laisse voir
-/// l'app (voir `EncreApp`). « Réduire les animations » : logo et nom fixes, simple fondu.
+/// Animation d'ouverture : la même intro que le site (web/presentation.html, `paintIntro`) — le « S » se trace,
+/// se remplit en s'illuminant, puis « ona » apparaît à sa droite. L'écran de lancement système est le même fond
+/// uni, sans logo : aucun saut. Avec `leaving`, tout se fond et laisse voir l'app (voir `EncreApp`).
+/// « Réduire les animations » : le mot entier, fixe.
 struct LaunchSplashView: View {
+    /// Mêmes durées que le site : départ après 0,35 s, puis 4,4 s.
+    private static let delay = 0.35
+    private static let duration = 4.4
     /// Durée de l'intro avant que la sortie puisse commencer.
-    static let introSeconds = 1.8
-    /// Instant où le « S » se recale : onde et vibration.
-    private static let landing = 1.15
-    private static let logoSize: CGFloat = 72
-    private static let slices = 7
+    static let introSeconds = delay + duration
 
     var leaving = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var start = Date()
-    @State private var landed = false
+    /// Largeur de « ona » une fois affiché en entier.
+    @State private var restWidth: CGFloat = 0
 
     var body: some View {
-        ZStack {
-            Color.black
-
+        GeometryReader { screen in
+            let vmin = min(screen.size.width, screen.size.height)
             TimelineView(.animation(paused: reduceMotion)) { timeline in
-                let t = reduceMotion ? Self.introSeconds : timeline.date.timeIntervalSince(start)
+                let t = timeline.date.timeIntervalSince(start)
+                let p = reduceMotion ? 1 : clamp((t - Self.delay) / Self.duration)
                 ZStack {
-                    wave(at: t)
-                    logo(at: t)
-                        .scaleEffect(leaving && !reduceMotion ? 11 : 1)
-                        .animation(.easeIn(duration: 0.45), value: leaving)
-                    title(at: t)
-                        .offset(y: 112)
-                        .opacity(leaving ? 0 : 1)
-                        .animation(.easeOut(duration: 0.15), value: leaving)
+                    halo(p, diameter: vmin * 0.7)
+                    word(p, size: min(240, max(88, vmin * 0.24)))
                     // Le compte se vérifie encore après l'intro : on le montre.
                     ProgressView()
                         .tint(.white)
-                        .offset(y: 210)
-                        .opacity(!leaving && t > Self.introSeconds + 0.4 && !reduceMotion ? 1 : 0)
+                        .offset(y: 150)
+                        .opacity(!leaving && !reduceMotion && t > Self.introSeconds + 0.4 ? 1 : 0)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(width: screen.size.width, height: screen.size.height)
             }
         }
-        // Sur toute la vue : le centre est celui de l'écran, comme au lancement système (sinon le logo sautait).
+        .background(Color(hex: 0x0A0A0B))
         .ignoresSafeArea()
         .opacity(leaving ? 0 : 1)
-        .animation(.easeIn(duration: 0.3).delay(0.15), value: leaving)
-        .sensoryFeedback(.impact(weight: .medium), trigger: landed)
-        .task {
-            start = Date()
-            guard !reduceMotion else { return }
-            try? await Task.sleep(for: .seconds(Self.landing))
-            landed = true
-        }
+        .animation(.easeInOut(duration: 0.45), value: leaving)
+        .onAppear { start = Date() }
         .accessibilityHidden(true)
     }
 
-    /// Avancement de 0 à 1 entre deux instants.
-    private func ramp(_ t: Double, _ from: Double, _ to: Double) -> Double {
-        min(1, max(0, (t - from) / (to - from)))
+    private func clamp(_ value: Double) -> Double { min(1, max(0, value)) }
+
+    /// Avancement de 0 à 1 entre deux moments de l'intro (en fraction de sa durée).
+    private func segment(_ p: Double, _ from: Double, _ to: Double) -> Double { clamp((p - from) / (to - from)) }
+
+    private func eased(_ value: Double) -> Double { 1 - pow(1 - value, 3) }
+
+    /// Lueur du logo : un éclat juste après le tracé, qui retombe.
+    private func glow(_ p: Double) -> Double {
+        let pulse = segment(p, 0.42, 0.5) * (1 - segment(p, 0.5, 0.66))
+        return min(1, pulse * 1.6 + 0.25 * segment(p, 0.4, 0.5) * (1 - segment(p, 0.66, 1)))
     }
 
-    private func logo(at t: Double) -> some View {
-        // Se ramasse, puis jaillit en dépassant un peu sa taille finale.
-        let squeeze = ramp(t, 0, 0.18)
-        let back = ramp(t, 0.18, 0.62) - 1
-        let overshoot = 1 + 2.7 * back * back * back + 1.7 * back * back
-        let scale = t < 0.18 ? 1 - 0.18 * squeeze : 0.82 + 0.83 * overshoot
-        // Force du battement : monte puis retombe à zéro à l'instant `landing`.
-        let beat = sin(.pi * ramp(t, 0.4, Self.landing))
-        let flash = t < Self.landing ? 0 : 1 - ramp(t, Self.landing, Self.landing + 0.5)
-        let size = Self.logoSize
-        let slice = size / CGFloat(Self.slices)
-
-        return ZStack {
-            if beat > 0.01 {
-                ForEach(0..<Self.slices, id: \.self) { index in
-                    mark
-                        .mask(alignment: .leading) {
-                            Rectangle().frame(width: slice + 0.5).offset(x: CGFloat(index) * slice)
-                        }
-                        .offset(y: CGFloat(beat * 13 * sin(t * 17 + Double(index) * 0.95)))
-                }
-            } else {
-                mark
-            }
-        }
-        .frame(width: size, height: size)
-        .shadow(color: .white.opacity(0.12 * ramp(t, 0.3, 0.8) + 0.45 * flash), radius: 8 + 14 * CGFloat(flash))
-        .scaleEffect(CGFloat(scale))
-    }
-
-    private var mark: some View {
-        SonaMark()
-            .fill(SonaMark.color)
-            .frame(width: Self.logoSize, height: Self.logoSize)
-    }
-
-    private func wave(at t: Double) -> some View {
-        let progress = ramp(t, Self.landing, Self.landing + 0.65)
-        let spread = 1 - pow(1 - progress, 3)
+    private func halo(_ p: Double, diameter: CGFloat) -> some View {
+        let light = glow(p)
         return Circle()
-            .strokeBorder(Color.white.opacity(t < Self.landing ? 0 : 0.45 * (1 - progress)), lineWidth: 1.5)
-            .frame(width: 120 + 420 * CGFloat(spread), height: 120 + 420 * CGFloat(spread))
+            .fill(RadialGradient(colors: [SonaMark.color.opacity(0.22), .clear], center: .center, startRadius: 0, endRadius: diameter / 2))
+            .frame(width: diameter, height: diameter)
+            .scaleEffect(0.8 + CGFloat(light) * 0.4)
+            .opacity(light)
     }
 
-    private func title(at t: Double) -> some View {
-        HStack(spacing: 0) {
-            ForEach(Array("Sona".enumerated()), id: \.offset) { index, letter in
-                let from = Self.landing + 0.05 + Double(index) * 0.07
-                let shown = ramp(t, from, from + 0.3)
-                let rise = 1 - pow(1 - shown, 3)
+    private func word(_ p: Double, size: CGFloat) -> some View {
+        let light = glow(p)
+        let side = size * 0.72
+        let opening = CGFloat(eased(segment(p, 0.52, 0.85)))
+        return HStack(alignment: .lastTextBaseline, spacing: 0) {
+            ZStack {
+                SonaMark()
+                    .fill(SonaMark.color)
+                    .opacity(segment(p, 0.4, 0.5))
+                SonaMark()
+                    .trim(from: 0, to: eased(segment(p, 0, 0.42)))
+                    .stroke(SonaMark.color, style: StrokeStyle(lineWidth: side * 3 / 163, lineJoin: .round))
+            }
+            .frame(width: side, height: side)
+            .compositingGroup()
+            .shadow(color: Color(red: 236 / 255, green: 236 / 255, blue: 244 / 255).opacity(light * 0.95), radius: CGFloat(light) * 18)
+
+            // La place de « ona » s'ouvre peu à peu : le « S », centré avec elle, glisse vers la gauche.
+            letters(p, size: size)
+                .fixedSize()
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { restWidth = $0 }
+                .frame(width: opening * restWidth, alignment: .leading)
+        }
+    }
+
+    private func letters(_ p: Double, size: CGFloat) -> some View {
+        HStack(spacing: -0.05 * size) {
+            ForEach(Array("ona".enumerated()), id: \.offset) { index, letter in
+                let from = 0.56 + Double(index) * 0.07
+                let shown = eased(segment(p, from, from + 0.22))
                 Text(String(letter))
-                    .font(.system(size: 44, weight: .bold))
-                    .foregroundStyle(Tone.primary)
-                    .opacity(rise)
-                    .offset(y: 18 * CGFloat(1 - rise))
+                    .font(.custom("FamiljenGrotesk-Bold", fixedSize: size))
+                    .foregroundStyle(SonaMark.color)
+                    .opacity(shown)
+                    .offset(y: CGFloat(1 - shown) * size * 0.4)
+                    .blur(radius: CGFloat(1 - shown) * 14)
             }
         }
+        .padding(.leading, 0.04 * size)
+        .padding(.trailing, 0.1 * size)
     }
 }

@@ -32,7 +32,6 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen:
           UIColorName: LaunchBackground
-          UIImageName: LaunchLogo
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         # L'API Sona tourne en local (voir README du dépôt principal, section
@@ -67,6 +66,8 @@ targets:
         # Pricedown (thème GTA VI) : déclarée ici en plus de l'enregistrement à l'exécution (GtaFont).
         UIAppFonts:
           - Pricedown.otf
+          # Police du site, pour « ona » dans l'animation d'ouverture.
+          - FamiljenGrotesk-Bold.ttf
         # Liens `encre://` : ouverture depuis les widgets (blind test, récap…).
         CFBundleURLTypes:
           - CFBundleURLName: com.sona.encre
