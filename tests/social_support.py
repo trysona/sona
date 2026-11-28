@@ -38,6 +38,13 @@ class FakeAccounts:
             raise InvalidToken()
         return who
 
+    async def standing(self, uid):
+        if self.down:
+            from app.services.sona_accounts import Unavailable
+
+            raise Unavailable("down")
+        return self.profile_data.get(uid)
+
     async def profiles(self, ids):
         return {i: self.profile_data[i] for i in ids if i in self.profile_data}
 

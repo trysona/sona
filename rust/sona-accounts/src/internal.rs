@@ -52,15 +52,15 @@ pub async fn profiles(State(s): State<AppState>, _i: Internal, Json(b): Json<Pro
     if b.ids.len() > 500 {
         return Err(AppError::bad("Trop de comptes (500 maximum)."));
     }
-    let rows: Vec<(Uuid, String, Option<String>, Option<String>, String)> = sqlx::query_as(
-        "select id, username, display_name, avatar_url, status::text from public.service_profiles($1)",
+    let rows: Vec<(Uuid, String, Option<String>, Option<String>, String, String)> = sqlx::query_as(
+        "select id, username, display_name, avatar_url, status::text, role::text from public.service_profiles($1)",
     )
     .bind(&b.ids)
     .fetch_all(&s.pool)
     .await?;
     let out: Vec<Value> = rows
         .into_iter()
-        .map(|(id, username, display_name, avatar_url, status)| json!({ "id": id, "username": username, "display_name": display_name, "avatar_url": avatar_url, "status": status }))
+        .map(|(id, username, display_name, avatar_url, status, role)| json!({ "id": id, "username": username, "display_name": display_name, "avatar_url": avatar_url, "status": status, "role": role }))
         .collect();
     Ok(Json(json!({ "profiles": out })))
 }

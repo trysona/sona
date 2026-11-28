@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
+from app.api import limits
 from app.api.auth import bearer_token, get_deps, identify, require_admin
 from app.api.state import ApiDeps
 from app.db.repository import Account
@@ -136,6 +137,9 @@ async def login_with_lastfm(payload: LastfmLoginIn, deps: ApiDeps = Depends(get_
         task = asyncio.create_task(_notify_admins(deps, account))
         _tasks.add(task)  # sans cette référence, la tâche peut disparaître avant la fin
         task.add_done_callback(_tasks.discard)
+    # Compte rattaché à un compte Sona : la connexion Last.fm ne l'ouvre plus (ni sanctions ni double facteur sinon).
+    if await deps.repo.uid_linked_to(account.id) is not None:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Ce compte est passé aux comptes Sona : connecte-toi avec ton compte Sona.")
     token = await deps.repo.create_session(account.id)
     return LoginOut(session_token=token, account=AccountOut.from_account(account))
 
@@ -153,6 +157,7 @@ async def link_legacy(payload: LinkLegacyIn, deps: ApiDeps = Depends(identify)) 
     (bibliothèque, playlists, historique). La preuve : l'ancienne session de l'appareil, sinon autoriser Last.fm avec le
     pseudo de l'ancien compte. Un ancien compte n'est rattaché qu'une fois, et seulement s'il était accepté. Sa liaison
     Last.fm suit : la clé passe au service des comptes."""
+    limits.no_guest(deps)  # un compte sans inscription se perd avec le navigateur : les données avec
     me = deps.account
     if me is None or not me.supabase_uid:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Connecte-toi avec ton compte Sona pour rattacher un ancien compte.")

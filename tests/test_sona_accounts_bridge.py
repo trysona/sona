@@ -412,3 +412,42 @@ def test_auth_config_gives_the_native_apps_only_public_values(client):
     got = client.get("/auth/config").json()
     assert got["supabase_url"] == "https://x.supabase.co" and got["supabase_anon_key"] == "anon-publique"
     assert SECRET not in str(got)
+
+
+# -- Sessions d'appareil (TV, casque) et reconnexion Last.fm ------------------
+
+
+def test_a_device_session_follows_the_sanctions_of_its_sona_account(client):
+    legacy = client.post("/auth/lastfm", json={"token": "vieux"}).json()
+    client.post(f"/admin/accounts/{legacy['account']['id']}/approve", headers=LEGACY)
+    me = person(client, "alice")
+    assert client.post("/auth/link-legacy", headers=me, json={"token": "vieux"}).status_code == 200
+    # La TV : autorisée depuis le compte Sona, elle reçoit une session sans jeton Supabase.
+    started = client.post("/auth/device/start", json={"name": "TV"}).json()
+    assert client.post("/auth/device/approve", headers=me, json={"user_code": started["user_code"]}).status_code == 200
+    tv = {"Authorization": f"Bearer {client.post('/auth/device/poll', json={'device_code': started['device_code']}).json()['session_token']}"}
+    assert client.get("/plays/recent", headers=tv).status_code == 200
+    client.fake.profile_data["uid-alice"]["status"] = "banned"
+    got = client.get("/plays/recent", headers=tv)
+    assert got.status_code == 403 and got.json()["error"] == "sanctioned"
+    client.fake.profile_data["uid-alice"]["status"] = "active"
+    client.fake.down = True
+    assert client.get("/plays/recent", headers=tv).status_code == 503
+    client.fake.down = False
+    del client.fake.profile_data["uid-alice"]  # compte supprimé
+    assert client.get("/plays/recent", headers=tv).status_code == 401
+    # Et Last.fm ne rouvre pas un compte passé aux comptes Sona.
+    assert client.post("/auth/lastfm", json={"token": "vieux"}).status_code == 403
+
+
+def test_guests_cannot_hand_out_device_sessions_or_adopt_accounts(client):
+    import base64
+    import json
+
+    claims = base64.urlsafe_b64encode(json.dumps({"is_anonymous": True}).encode()).decode().rstrip("=")
+    token = f"head.{claims}.sig"
+    client.fake.add_user(token, "uid-invite", "invite")
+    guest = {"Authorization": f"Bearer {token}"}
+    started = client.post("/auth/device/start", json={"name": "TV"}).json()
+    assert client.post("/auth/device/approve", headers=guest, json={"user_code": started["user_code"]}).status_code == 403
+    assert client.post("/auth/link-legacy", headers=guest, json={"token": "vieux"}).status_code == 403
