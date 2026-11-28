@@ -203,8 +203,6 @@ const keys = [
       await command("addToPlaylist", "", { playlist: set.playlist });
     },
   }),
-  new SonaKey("djradio", { glyph: "radio", pcOnly: true, run: () => command("djradio", "") }),
-  new SonaKey("lyricsoverlay", { glyph: "quote", pcOnly: true, on: (st) => !!st.overlay, run: () => command("lyricsOverlay", "") }),
   // Copie « titre — artiste + lien » du titre en cours, prêt à coller dans Discord.
   new SonaKey("share", { glyph: "share", pcOnly: true, run: () => command("shareTrack", "") }),
   // Préréglage de volume suivant (En vocal → Calme → Normal → Fort).
@@ -218,7 +216,7 @@ const keys = [
   }),
 ];
 let presetLabel = "";
-for (const k of keys.filter((k) => ["like", "addtoplaylist", "djradio", "share"].includes(k.manifestId.split(".").pop()))) k.needsTrack = true;
+for (const k of keys.filter((k) => ["like", "addtoplaylist", "share"].includes(k.manifestId.split(".").pop()))) k.needsTrack = true;
 // « ✓ » sur la touche après un ajout ou une copie réussis.
 for (const id of ["addtoplaylist", "share"]) keys.find((k) => k.manifestId.endsWith(id)).showsOk = true;
 

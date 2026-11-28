@@ -12,7 +12,6 @@ const ACTIONS = {
   volumeDown: "Volume −",
   volumePreset: "Volume : préréglage suivant",
   like: "J'aime",
-  lyrics: "Paroles en surimpression",
   show: "Afficher Sona",
 };
 
