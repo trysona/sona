@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 
 import httpx
@@ -13,11 +12,10 @@ from app.api.auth import bearer_token, get_deps, identify, is_owner, require_adm
 from app.api.state import ApiDeps
 from app.db.repository import Account
 from app.providers.lastfm_auth import APP_CALLBACK, AUTH_URL, LastfmAuthError
-from app.services import alerts, presence
+from app.services import presence
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["comptes"])
-_tasks: set[asyncio.Task] = set()
 
 
 class AccountOut(BaseModel):
@@ -136,13 +134,9 @@ async def login_with_lastfm(payload: LastfmLoginIn, deps: ApiDeps = Depends(get_
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, str(exc)) from exc
     profile = await deps.lastfm_auth.profile(session.username)
     is_admin = session.username.casefold() in deps.settings.admin_lastfm_users
-    account, created = await deps.repo.upsert_account(
+    account, _ = await deps.repo.upsert_account(
         session.username, profile.display_name, profile.avatar_url, session.key, is_admin, deps.settings.api_user_id,
     )
-    if created and account.status == "pending":
-        task = asyncio.create_task(_notify_admins(deps, account))
-        _tasks.add(task)  # sans cette référence, la tâche peut disparaître avant la fin
-        task.add_done_callback(_tasks.discard)
     # Compte rattaché à un compte Sona : la connexion Last.fm ne l'ouvre plus (ni sanctions ni double facteur sinon).
     if await deps.repo.uid_linked_to(account.id) is not None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Ce compte est passé aux comptes Sona : connecte-toi avec ton compte Sona.")
@@ -252,9 +246,3 @@ async def decide(account_id: int, action: str, deps: ApiDeps = Depends(require_a
     else:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Action inconnue : {action}")
     return AccountOut.from_account(await deps.repo.account_by_id(account_id))
-
-
-async def _notify_admins(deps: ApiDeps, account: Account) -> None:
-    """Prévient les administrateurs qu'une demande d'accès attend."""
-    name = account.display_name or account.lastfm_username
-    await alerts.send(deps.settings, f"Nouvelle demande d'accès à Sona : {name} (Last.fm : {account.lastfm_username}). Réglages → Administration.")

@@ -21,7 +21,7 @@ class SanctionedError(Exception):
         self.body = {"error": "sanctioned", "status": status, "reason": reason, "until": until}
 
 
-PENDING_MESSAGE = "Compte en attente de validation par un administrateur."
+PENDING_MESSAGE = "Ce type de compte n'est plus ouvert aux nouveaux venus : crée un compte Sona."
 REJECTED_MESSAGE = "Accès à l'app refusé par un administrateur."
 
 
@@ -116,10 +116,10 @@ async def require_token(deps: ApiDeps = Depends(identify)) -> ApiDeps:
 def is_owner(deps: ApiDeps) -> bool:
     """Le propriétaire de Sona : un administrateur qui est le compte `SONA_OWNER_UID` (ou l'ancien jeton du
     serveur). Sans ce réglage, tout administrateur."""
+    if not deps.is_admin:
+        return False
     owner = deps.settings.owner_uid
-    if not deps.is_admin or not owner:
-        return deps.is_admin
-    return deps.account is None or (deps.account.supabase_uid or "").lower() == owner
+    return not owner or deps.account is None or (deps.account.supabase_uid or "").lower() == owner
 
 
 async def require_admin(deps: ApiDeps = Depends(require_token)) -> ApiDeps:
