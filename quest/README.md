@@ -38,8 +38,6 @@ Les autres clients affichent pour l'instant ce casque avec l'icône d'un ordinat
 
 ## Limites actuelles
 
-- Le visualiseur est une fenêtre 2D : l'affichage dans la pièce (réalité mixte, passthrough)
-  demande le SDK Meta Spatial, prévu dans un second temps.
 - « J'aime » n'est pas branché sur le casque.
 
 ## Compiler à la main
