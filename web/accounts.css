@@ -223,7 +223,7 @@
 .menu-item.unread .mi-label::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-right: 8px; }
 
 /* ── Administration ────────────────────────────────────────────────────── */
-.admin-tabs { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 0 18px; padding-bottom: 2px; }
+.admin-tabs { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 14px 0 18px; padding-bottom: 2px; }
 .admin-tabs::-webkit-scrollbar { display: none; }
 .admin-tabs a { flex: none; padding: 10px 16px; min-height: 44px; display: inline-flex; align-items: center; border-radius: 999px; background: var(--fill); font-size: 14px; font-weight: 600; color: var(--text-2); }
 .admin-tabs a.on { background: var(--text); color: var(--bg); }
@@ -245,12 +245,16 @@
 .badge.resolved, .badge.active { background: rgba(48, 209, 88, .18); color: #30d158; }
 .badge.role { background: var(--accent-soft); color: var(--accent); }
 .user-head { display: flex; align-items: center; gap: 14px; }
+.user-head > .avatar { flex: none; aspect-ratio: 1; }
+.user-who { min-width: 0; overflow-wrap: anywhere; }
+.proof dd { white-space: pre-wrap; }
+.proof-img { display: block; width: 96px; height: 96px; border-radius: 14px; object-fit: cover; }
 .facts { margin: 10px 0; }
 .facts div { display: flex; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--hairline); font-size: 14px; }
 .facts dt { flex: 0 0 96px; color: var(--text-3); }
 .facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
-.snap { max-height: 160px; overflow: auto; background: var(--fill); border-radius: 12px; padding: 10px 12px; font-size: 12px; white-space: pre-wrap; }
 .quote { font-style: italic; }
+.appeal .set-text { flex: 1 1 260px; min-width: 0; }
 .appeal { align-items: flex-start; flex-wrap: wrap; }
 form[data-note] { display: flex; gap: 8px; margin: 8px 0 14px; }
 form[data-note] .field { margin: 0; flex: 1; }

@@ -547,6 +547,31 @@ const staffProfile = (role) => ({ id: "m1", username: role, role, status: "activ
   await t.close();
 }
 
+{
+  // La base laisse l'équipe lire toutes les sanctions : l'app ne doit afficher que les siennes.
+  const other = { id: "s9", user_id: "quelqu-un-d-autre", kind: "warning", reason: "Pas pour toi", created_at: "2026-10-01T00:00:00Z", acknowledged_at: null };
+  const t = await open({ mock: signedIn({ profile: staffProfile("admin"), sanctions: [other] }), hash: "#/home" });
+  await t.page.waitForSelector("#sb");
+  await wait(t.page, 900);
+  ok("équipe : l'avertissement d'une autre personne ne s'affiche pas", (await t.page.locator(".sheet .warn-reason").count()) === 0);
+  await t.close();
+}
+{
+  const report = { id: "r1", reporter_id: "u2", target_type: "message", target_ref: "ABCD:7", reason: "harassment", status: "open", created_at: "2026-10-01T00:00:00Z", snapshot: { text: "un message déplacé", by: "fautif" }, reporter: { username: "alice" }, target: { id: "x1", username: "fautif", status: "active" } };
+  const t = await open({ mock: signedIn({ profile: staffProfile("moderator"), reports: [report] }), hash: "#/admin/reports", accounts: { "POST /admin/session": { ok: true } } });
+  await t.page.click("[data-report='r1']");
+  const sheet = await text(t.page, ".sheet");
+  ok("signalement : preuve lisible, pas de JSON", /un message déplacé/.test(sheet) && /Message/.test(sheet) && !/[{}]/.test(sheet), sheet);
+  await t.page.click(".sheet >> text=Supprimer le message");
+  await t.page.fill(".sheet textarea[name='reason']", "Propos insultants");
+  await t.page.click(".sheet form.ask button[type='submit']");
+  await wait(t.page, 400);
+  const call = t.calls.find((c) => c.path === "/admin/session");
+  const body = call && JSON.parse(call.body);
+  ok("message signalé : sa suppression envoie le numéro du message", body && body.action === "delete_message" && body.code === "ABCD" && body.message_id === "7", call?.body);
+  await t.close();
+}
+
 // ── Direction « Pochette » : réglages sans boîtes, interrupteurs blancs, menu teinté, popup empilée ──
 {
   const t = await open({ mock: signedIn(), hash: "#/settings", viewport: { width: 390, height: 844 } });
