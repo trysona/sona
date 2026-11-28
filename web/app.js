@@ -2657,17 +2657,6 @@ function djLoader(seed) {
   };
 }
 
-async function startDJRadio(seed) {
-  if (partyGuest()) return toast("Tu es dans une écoute ensemble : c'est l'hôte qui choisit la musique");
-  toast(`Radio à partir de « ${seed.title} »…`);
-  try {
-    const tracks = await djLoader(seed)();
-    state.shuffle = false;
-    playList([seed, ...tracks.filter((t) => !sameTrack(t, seed))], 0, `Radio · ${seed.title}`, { keepStation: true });
-    state.station = { name: `Radio · ${seed.title}`, loader: () => djLoader(state.queue[state.queue.length - 1])() };
-  } catch (e) { toast(e.message); }
-}
-
 /** File terminée : la radio continue, ou la lecture automatique (réglage
     de l'app) enchaîne sur des titres similaires. */
 async function extendQueue() {
@@ -2981,12 +2970,10 @@ function renderTopbar() {
       : `<div class="lcd idle"><span>${icons.note}</span></div>`}
     ${grip()}
     <div class="right-tools">
-      ${desktop ? `<button class="tbtn small opt-1 ${desk.clients.length ? "on" : ""}" data-act="remote" title="Télécommande : pilote ce PC depuis ton téléphone">${icons.phone}</button>
-      <button class="tbtn small opt-1 ${desk.mini ? "on" : ""}" data-act="mini" title="Mini-lecteur">${icons.miniPlayer}</button>` : ""}
+      ${desktop ? `<button class="tbtn small opt-1 ${desk.mini ? "on" : ""}" data-act="mini" title="Mini-lecteur">${icons.miniPlayer}</button>` : ""}
       <button class="tbtn small ${remote || otherDevices().length ? "on" : ""}" data-act="devices" title="Relais : tes appareils">${icons.devices}</button>
       ${t ? `<button class="tbtn small ${liked ? "on" : ""}" data-act="like" title="Bibliothèque">${liked ? icons.heartFill : icons.heart}</button>` : ""}
       <button class="tbtn small opt-2 ${panelTab() === "lyrics" ? "on" : ""}" data-act="lyrics" title="Paroles">${icons.quote}</button>
-      ${soundAvailable && !isMobile() ? `<button class="tbtn small opt-1 ${viz.el ? "on" : ""}" data-act="viz" title="Visualiseur">${icons.wave}</button>` : ""}
       <button class="tbtn small opt-2 ${panelTab() === "queue" ? "on" : ""}" data-act="queue" title="À suivre">${icons.queue}</button>
       <button class="tbtn small more-tools" data-act="tools" title="Plus">${icons.more}</button>
       <div class="volume" title="${remote ? `Volume de ${esc(remote.name)}` : `Volume : ${volLabel(volumeShown)} — molette pour régler finement`}"><button class="vol-icon" data-act="volume" title="Volume et préréglages">${volIcon(volumeShown)}</button><input type="range" class="slider" id="vol" min="0" max="1" step="0.005" value="${volumeShown}" style="--p:${volumeShown * 100}%" aria-label="Volume">${remote ? "" : `<span class="vol-pct" id="vol-pct">${volLabel(volumeShown)}</span>`}</div>
@@ -2999,7 +2986,6 @@ function renderTopbar() {
     if (act === "devices") return toggleDevices();
     if (act === "volume") return remoteDevice() ? null : volumeSheet();
     if (act === "tools") return toolsSheet();
-    if (act === "remote") return openRemotePairing();
     if (act === "mini") return desktop?.set("mini", !desk.mini);
     if (act === "toggle") toggle();
     if (act === "prev") prev();
@@ -3009,7 +2995,6 @@ function renderTopbar() {
     if (act === "like" && t) toggleLike(t);
     if (act === "open") openNowPlaying(state.npTab);
     if (act === "lyrics") return drawerMode() ? toggleDrawer("lyrics") : openNowPlaying("lyrics", true);
-    if (act === "viz") viz.el ? closeVisualizer() : openVisualizer();
     if (act === "queue") return drawerMode() ? toggleDrawer("queue") : openNowPlaying("queue", true);
     if (act === "seek" && remote && t?.duration_seconds) {
       const rect = e.target.closest(".progress").getBoundingClientRect();
@@ -4991,9 +4976,7 @@ function toolsSheet() {
   actionSheet("", [
     hidden("lyrics") && { icon: icons.quote, label: "Paroles", run: () => openNowPlaying("lyrics", true) },
     hidden("queue") && { icon: icons.queue, label: "À suivre", run: () => openNowPlaying("queue", true) },
-    hidden("viz") && { icon: icons.wave, label: "Visualiseur", run: () => (viz.el ? closeVisualizer() : openVisualizer()) },
     hidden("mini") && { icon: icons.miniPlayer, label: "Mini-lecteur", checked: desk.mini, run: () => desktop?.set("mini", !desk.mini) },
-    hidden("remote") && { icon: icons.phone, label: "Télécommande", sub: "Pilote ce PC depuis ton téléphone", run: openRemotePairing },
     { icon: icons.speaker, label: "Volume et préréglages", sub: volLabel(vol.level), run: volumeSheet },
   ]);
 }
@@ -5158,7 +5141,7 @@ const sound = {
 const soundAvailable = !isIOS;
 
 function soundWanted() {
-  return soundAvailable && (sound.eq.some((g) => Math.abs(g) > 0.05) || sound.normalize || sound.fade > 0 || sound.visual || sound.reactiveBg);
+  return soundAvailable && (sound.eq.some((g) => Math.abs(g) > 0.05) || sound.normalize || sound.fade > 0 || sound.reactiveBg);
 }
 
 /** Branche le lecteur sur l'égaliseur (une fois, à la première option activée). */
@@ -5374,90 +5357,6 @@ function watchHeadphones() {
     audio.pause();
     toast("Sortie audio débranchée : pause");
   });
-}
-
-// ── Visualiseur plein écran (ordinateur) ──────────────────────────────────
-
-const viz = { el: null, raf: 0 };
-
-function openVisualizer() {
-  if (!soundAvailable) return toast("Le visualiseur est sur ordinateur (et dans le lecteur de l'app iPhone)");
-  if (!state.queue[state.index]) return toast("Lance un titre d'abord");
-  sound.visual = true;
-  if (!ensureSound()) { sound.visual = false; return toast("Visualiseur indisponible sur ce navigateur"); }
-  closeVisualizer();
-  sound.visual = true;
-  const el = document.createElement("div");
-  el.className = "viz";
-  el.innerHTML = `<div class="viz-bg"><img alt=""></div><canvas></canvas>
-    <div class="viz-meta"><img class="viz-art" alt=""><div><b></b><span></span></div></div>
-    <div class="viz-tools"><button data-viz="full" title="Plein écran (F)">${icons.expand}</button><button data-viz="close" title="Fermer (Échap)">${icons.close}</button></div>`;
-  document.body.append(el);
-  viz.el = el;
-  const canvas = $("canvas", el);
-  const g = canvas.getContext("2d");
-  const data = new Uint8Array(sound.analyser.frequencyBinCount);
-  let shownKey = "";
-  const toggleFull = () => (document.fullscreenElement ? document.exitFullscreen() : el.requestFullscreen()).catch(() => {});
-  const onKey = (e) => {
-    if (e.key === "Escape") closeVisualizer();
-    if (e.key === "f" || e.key === "F") toggleFull();
-  };
-  document.addEventListener("keydown", onKey);
-  el._cleanup = () => document.removeEventListener("keydown", onKey);
-  el.onclick = (e) => {
-    const act = e.target.closest("[data-viz]")?.dataset.viz;
-    if (act === "close") closeVisualizer();
-    if (act === "full") toggleFull();
-  };
-  renderTopbar();
-  const draw = () => {
-    viz.raf = requestAnimationFrame(draw);
-    const cur = state.queue[state.index];
-    const key = cur ? trackKey(cur) : "";
-    if (cur && key !== shownKey) {
-      shownKey = key;
-      $(".viz-bg img", el).src = big(cur.cover_url, 600);
-      $(".viz-art", el).src = big(cur.cover_url, 300);
-      $(".viz-meta b", el).textContent = cur.title;
-      $(".viz-meta span", el).textContent = cur.artist;
-    }
-    const w = (canvas.width = el.clientWidth * devicePixelRatio);
-    const h = (canvas.height = el.clientHeight * devicePixelRatio);
-    sound.analyser.getByteFrequencyData(data);
-    g.clearRect(0, 0, w, h);
-    // Barres en miroir depuis le centre : les basses au milieu, les aigus aux bords.
-    const bars = 64;
-    const step = w / (bars * 2);
-    const bw = step * 0.62;
-    const grad = g.createLinearGradient(0, h * 0.78, 0, h * 0.2);
-    grad.addColorStop(0, "rgba(250,45,108,.95)");
-    grad.addColorStop(1, "rgba(139,92,246,.85)");
-    g.fillStyle = grad;
-    for (let i = 0; i < bars; i++) {
-      const bin = Math.min(data.length - 1, Math.floor(Math.pow(i / bars, 1.8) * data.length * 0.7));
-      const v = data[bin] / 255;
-      const bh = Math.max(4 * devicePixelRatio, Math.pow(v, 1.4) * h * 0.55);
-      for (const side of [-1, 1]) {
-        const x = w / 2 + side * (i * step + step / 2) - bw / 2;
-        g.beginPath();
-        g.roundRect(x, h * 0.78 - bh, bw, bh, bw / 2);
-        g.fill();
-      }
-    }
-  };
-  draw();
-}
-
-function closeVisualizer() {
-  if (!viz.el) return;
-  cancelAnimationFrame(viz.raf);
-  viz.el._cleanup?.();
-  viz.el.remove();
-  viz.el = null;
-  sound.visual = false;
-  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-  renderTopbar();
 }
 
 // ── Relais ─────────────────────────────────────────────────────────
@@ -6153,24 +6052,20 @@ async function refreshStatus() {
   if (ds) {
     const u = ds.updates || {};
     const r = ds.remote || {};
-    const phones = (r.clients || []).filter((x) => x.name !== "Stream Deck");
     const d = ds.discord || {};
     groups.push([`Sona pour ${desktop.platform === "darwin" ? "Mac" : "Windows"}`, [
       u.available && u.latest ? statusRow("warn", "Version", `${ds.version} · la ${u.latest.version} est disponible (Réglages → Mises à jour)`)
         : u.error ? statusRow("warn", "Version", `${ds.version} · vérification impossible : ${u.error}`)
         : statusRow("ok", "Version", `${ds.version} · à jour`),
-      !r.enabled ? statusRow("off", "Télécommande du téléphone", "Désactivée")
-        : r.running ? statusRow("ok", "Télécommande du téléphone", `Port ${r.port}${phones.length ? ` · ${phones.map((x) => x.name).join(", ")}` : " · aucun téléphone connecté"}`)
-        : statusRow("bad", "Télécommande du téléphone", r.error || "Arrêtée"),
       ds.streamDeck ? statusRow("ok", "Stream Deck", `Plugin connecté ${agoText(Date.now() - ds.streamDeck.since)}`)
-        : !r.running ? statusRow("bad", "Stream Deck", "La télécommande est arrêtée : le plugin ne peut pas joindre Sona")
+        : !r.enabled ? statusRow("off", "Stream Deck", "Désactivé dans les réglages")
+        : !r.running ? statusRow("bad", "Stream Deck", r.error || "Sona n'a pas pu ouvrir le lien avec le plugin")
         : statusRow("off", "Stream Deck", "Plugin non connecté : installe-le (version Windows, fichier .streamDeckPlugin) et ouvre le logiciel Stream Deck"),
       !d.wanted ? statusRow("off", "Statut Discord", "Désactivé")
         : d.connected ? statusRow("ok", "Statut Discord", "Connecté : « Écoute Sona » sur ton profil")
         : statusRow("warn", "Statut Discord", d.error || "Connexion à Discord…"),
       ds.shortcuts?.refused?.length ? statusRow("warn", "Raccourcis clavier", `${plural(ds.shortcuts.refused.length, "raccourci déjà pris", "raccourcis déjà pris")} par une autre app`)
         : statusRow(ds.shortcuts?.count ? "ok" : "off", "Raccourcis clavier", ds.shortcuts?.count ? plural(ds.shortcuts.count, "raccourci actif", "raccourcis actifs") : "Aucun"),
-      statusRow(ds.overlay ? "ok" : "off", "Paroles en surimpression", ds.overlay ? "Affichées" : "Masquées"),
       ds.iphone?.available ? statusRow("ok", "Sona sur l'iPhone", ds.iphone.devices ? plural(ds.iphone.devices, "iPhone vu", "iPhone vus") : "Aucun iPhone branché ou sur le Wi-Fi")
         : statusRow("warn", "Sona sur l'iPhone", "Module iPhone absent de cette version"),
     ]]);
@@ -6663,24 +6558,13 @@ function rankRows(items, kind) {
   }).join("")}</div>`;
 }
 
-/** Défis entre amis : les classements de la semaine. */
-function friendsBoards({ boards, champion }) {
-  const medal = (i) => (i < 3 ? `<span class="medal m${i + 1}">${i + 1}</span>` : `${i + 1}.`);
-  return `<section class="section"><div class="section-head"><h2>Entre amis cette semaine</h2></div>
-    ${champion ? `<p class="champion">${icons.trophy} ${champion.me ? "Tu es" : `${esc(champion.name)} est`} champion de la semaine dernière · ${plural(champion.minutes, "minute")} de musique</p>` : ""}
-    <div class="boards">${boards.map((b) => `<div class="board"><div class="bt">${esc(b.title)}</div>
-      ${b.ranking.map((r, i) => `<div class="brow ${r.me ? "me" : ""}"><span class="bm">${medal(i)}</span>${avatar(r.avatar_url, r.name, "bav")}<span class="bn">${r.me ? "Toi" : esc(r.name)}</span><b>${r.value.toLocaleString("fr-FR")} <small>${esc(b.unit)}</small></b></div>`).join("")}
-    </div>`).join("")}</div></section>`;
-}
-
 async function viewStats() {
   const { period, offset } = statsView;
   const seg = `<div class="segmented">${PERIODS.map(([k, label]) => `<button data-period="${k}" class="${k === period ? "on" : ""}">${label}</button>`).join("")}</div>`;
   $("#content").innerHTML = page(`<h1 class="page-title">Stats</h1>${seg}<div class="loading-row"><span class="spinner"></span></div>`);
   bindStatsControls();
-  const [r, challenges, live] = await Promise.all([
+  const [r, live] = await Promise.all([
     api(`/stats?period=${period}&offset=${offset}&tz=${encodeURIComponent(tz())}`),
-    api(`/challenges?tz=${encodeURIComponent(tz())}`).catch(() => null),
     api(`/stats/live?tz=${encodeURIComponent(tz())}`).catch(() => null),
   ]);
   const delta = r.previous_plays ? Math.round(((r.plays - r.previous_plays) / r.previous_plays) * 100) : null;
@@ -6723,11 +6607,6 @@ async function viewStats() {
         ${tile({ icon: icons.calendar, title: "Ton mois", subtitle: "Le récap du mois dernier", tone: "blue", data: 'data-recap="month"' })}
         ${tile({ icon: icons.trophy, title: "Ton année", subtitle: "Le récap de l'année dernière", tone: "orange", data: 'data-recap="year"' })}
       </div></section>
-    ${challenges?.friends?.boards?.length ? friendsBoards(challenges.friends) : ""}
-    ${challenges ? `<section class="section"><div class="section-head"><h2>Défis de la semaine</h2><span class="muted">${challenges.ends_in_days ? `encore ${plural(challenges.ends_in_days, "jour")}` : "dernier jour"}</span></div>
-      <div class="challenges">${challenges.challenges.map((c) => `<div class="challenge ${c.done ? "done" : ""}"><div class="ct">${esc(c.title)}${c.done ? ` ${icons.check}` : ""}</div>
-        <div class="meter"><i style="width:${Math.round((c.value / c.goal) * 100)}%"></i></div><div class="cv">${c.value}/${c.goal} ${esc(c.unit)}</div></div>`).join("")}</div>
-      <div class="badges">${challenges.badges.map((b) => `<div class="achv ${b.earned ? "earned" : ""}" title="${esc(b.description)}"><span>${b.earned ? icons.medal : icons.lock}</span><b>${esc(b.title)}</b><small>${esc(b.description)}</small></div>`).join("")}</div></section>` : ""}
     ${live ? `<section class="section"><div class="section-head"><h2>En direct</h2><a class="more" href="#/recent">Écoutes récentes</a></div>
       <div class="live-card">
         ${nowPlaying ? `<div class="lc-now"><img src="${esc(big(nowPlaying.cover_url, 120))}" alt=""><span><span class="eyebrow">${bars()} En cours</span><b>${esc(nowPlaying.title)}</b><small>${esc(nowPlaying.artist)}</small></span></div>` : ""}
@@ -7893,11 +7772,6 @@ function desktopInit() {
   desktop.onMic?.(micChanged);
   // Page « J'écoute » du compte : bouton « Écouter avec moi » du statut Discord.
   setTimeout(() => api("/me/public-link").then(({ token }) => { desk.publicUrl = token ? publicUrl(token) : null; desktopReport(true); }).catch(() => {}), 4000);
-  let lastHeard = null;
-  desktop.onVoice?.((v) => {
-    if (v.last && v.last !== lastHeard) toast(`« ${v.last} »`);
-    lastHeard = v.last;
-  });
   desktop.onWindow(({ maximized, focused }) => {
     document.documentElement.classList.toggle("maximized", maximized);
     document.documentElement.classList.toggle("blurred", !focused);
@@ -7910,17 +7784,7 @@ function desktopInit() {
     try { desktop.reply(c.id, await desktopCommand(c)); } catch (e) { desktop.reply(c.id, null, e.message || "Erreur"); }
   });
   desktop.onAuthDone(({ authorized }) => retryPendingLogin(!authorized));
-  desktop.onRemoteClients((clients) => {
-    const before = desk.clients.length;
-    desk.clients = clients || [];
-    if (desk.clients.length > before) toast(`${desk.clients[desk.clients.length - 1].name} connecté à la télécommande`);
-    if (account) renderTopbar();
-    remotePairingRefresh?.();
-    if ($("#desk-settings")) renderDesktopSettings();
-  });
-  desktop.onOpenRemote(() => account && openRemotePairing());
-  desktop.onOverlay?.(() => { if ($("#desk-settings")) renderDesktopSettings(); });
-  desktop.onGameMode?.((on) => { if (on) closeVisualizer(); });
+  desktop.onRemoteClients?.(() => { if ($("#desk-settings")) renderDesktopSettings(); });
   watchHeadphones();
   desktop.onMini((on) => { desk.mini = on; if (account) renderTopbar(); if ($("#desk-settings")) renderDesktopSettings(); });
   desktop.settings().then((s) => { desk.mini = s.mini; desk.name = s.deviceNameShown; }).catch(() => {});
@@ -8094,55 +7958,10 @@ async function desktopCommand(c) {
       toast(`« ${t.title} » ajouté à la playlist`);
       break;
     }
-    case "djradio":
-      if (!t) throw new Error("Rien en lecture");
-      await startDJRadio(t);
-      break;
     default: throw new Error("Action inconnue");
   }
   desktopReport(true);
   return result;
-}
-
-// ── Télécommande : association du téléphone ─────────────────────────────
-
-let remotePairingRefresh = null;
-
-async function openRemotePairing() {
-  if (!desktop) return;
-  const wrap = openSheet(`<div id="pairing"><h2 class="sheet-title">Télécommande</h2><p class="muted">Chargement…</p></div>`, {
-    cls: "pair-sheet", onClose: () => { remotePairingRefresh = null; },
-  });
-  const paint = async () => {
-    const [info, s] = await Promise.all([desktop.remoteInfo(), desktop.settings()]);
-    const box = $("#pairing", wrap);
-    if (!box) return;
-    const others = info.urls.slice(1).filter((u) => u.rank < 9);
-    box.innerHTML = `<h2 class="sheet-title">Télécommande</h2>
-      <p class="muted">Pilote Sona sur ce PC depuis ton téléphone : pochette, paroles, file d'attente et recherche. Le téléphone doit être sur le même Wi-Fi.</p>
-      ${!s.remoteEnabled ? `<div class="pair-off">${icons.phone}<b>Télécommande désactivée</b><small>Active-la pour afficher le QR code.</small></div>`
-        : info.qr ? `<div class="pair-qr"><div class="qr-frame"><img src="${info.qr}" alt="QR code d'association"></div>
-            <div class="pair-steps"><b>Scanne avec l'appareil photo</b><span>Ouvre le lien : la télécommande s'affiche. Ajoute-la à l'écran d'accueil pour la retrouver.</span>
-            <code>${esc(info.urls[0].url)}</code>${others.length ? `<small>Autre réseau : ${others.map((u) => esc(u.url)).join(" · ")}</small>` : ""}</div></div>`
-        : `<div class="pair-off">${icons.globe}<b>${esc(info.error || "Aucun réseau trouvé")}</b><small>Connecte le PC au Wi-Fi ou à un câble réseau.</small></div>`}
-      ${info.clients.length ? `<div class="pair-clients">${info.clients.map((c) => `<div class="pair-client"><span class="dot"></span>${icons.phone}<b>${esc(c.name)}</b><small>connecté ${esc(since(new Date(c.since).toISOString()))}</small></div>`).join("")}</div>` : ""}
-      <div class="set-group">
-        ${toggleRow("remote-on", "Télécommande sur le réseau local", "Le PC accepte les téléphones associés (réseau local uniquement).", s.remoteEnabled)}
-        ${s.remoteEnabled ? linkRow("data-remote-reset", icons.lock, "Nouveau code d'association", "Les téléphones déjà associés devront rescanner") : ""}
-      </div>
-      <p class="fine-print">Rien ne passe ? Windows a peut-être demandé d'autoriser Sona dans son pare-feu : accepte pour les <b>réseaux privés</b>.</p>`;
-    const toggleInput = $('[data-setting="remote-on"]', box);
-    toggleInput.onchange = async () => { await desktop.set("remoteEnabled", toggleInput.checked); paint(); };
-    $("[data-remote-reset]", box)?.addEventListener("click", async () => {
-      if (!(await confirmSheet("Changer le code d'association ?", "Changer"))) return;
-      await desktop.set("remoteKey");
-      paint();
-      toast("Nouveau code : rescanne-le avec ton téléphone");
-    });
-  };
-  remotePairingRefresh = () => paint().catch(() => {});
-  paint().catch((e) => toast(e.message));
-  return wrap;
 }
 
 async function renderDesktopSettings() {
@@ -8151,43 +7970,33 @@ async function renderDesktopSettings() {
   const s = await desktop.settings().catch(() => null);
   if (!s || !$("#desk-settings")) return;
   desk.name = s.deviceNameShown;
-  box.innerHTML = `${linkRow("data-desk-remote", icons.phone, "Télécommande du téléphone",
-      !s.remoteEnabled ? "Désactivée" : desk.clients.length ? `${plural(desk.clients.length, "téléphone connecté", "téléphones connectés")}` : "Scanne un QR code avec ton téléphone")}
-    ${toggleRow("desk-mini", "Mini-lecteur", "Une petite fenêtre en verre, toujours au premier plan.", s.mini)}
+  box.innerHTML = `${toggleRow("desk-mini", "Mini-lecteur", "Une petite fenêtre en verre, toujours au premier plan.", s.mini)}
     ${toggleRow("desk-closeToTray", "Continuer en arrière-plan", "Fermer la fenêtre ne coupe pas la musique : Sona reste près de l'horloge, et l'iPhone peut toujours piloter le PC.", s.closeToTray)}
     ${toggleRow("desk-launchAtLogin", "Lancer avec Windows", "Sona démarre discrètement, prêt à recevoir la musique de l'iPhone.", s.launchAtLogin)}
-    ${toggleRow("desk-lyricsOverlay", "Paroles en surimpression", "Les paroles synchronisées par-dessus tes autres fenêtres (on clique au travers).", s.lyricsOverlay)}
-    ${s.lyricsOverlay ? linkRow("data-desk-overlay-pos", icons.quote, "Position des paroles", s.overlayPosition === "top" ? "En haut de l'écran" : "En bas de l'écran") : ""}
+    ${toggleRow("desk-remoteEnabled", "Plugin Stream Deck", "Le plugin Sona de ton Stream Deck pilote la lecture sur ce PC.", s.remoteEnabled)}
     ${toggleRow("desk-discordEnabled", "Statut Discord", "« Écoute Sona » sur ton profil Discord : titre, pochette et progression — aussi pour ce que tu écoutes sur l'iPhone ou le site, tant qu'Sona tourne sur ce PC.", s.discordEnabled)}
     ${s.discordEnabled ? linkRow("data-desk-discord", icons.globe, "Discord", discordStatusText(s)) : ""}
     ${linkRow("data-desk-shortcuts", icons.bolt, "Raccourcis clavier", shortcutsSummary(s))}
     ${toggleRow("desk-pauseOnLock", "Pause quand le PC se verrouille", "Aussi en veille. La musique repart au déverrouillage.", s.pauseOnLock)}
     ${toggleRow("desk-pauseOnHeadphones", "Pause quand le casque est débranché", "Plus de musique qui part soudain dans les haut-parleurs.", s.pauseOnHeadphones)}
     ${desktop.platform === "win32" ? toggleRow("desk-micWatch", "Mode vocal automatique", "Quand Discord (ou une autre app) utilise ton micro, la musique passe sur ton préréglage « En vocal », puis revient après l'appel.", s.micWatch !== false) : ""}
-    ${desktop.platform === "win32" ? toggleRow("desk-voiceControl", "Commandes vocales « Sona… »", "Dis « Sona, suivant », « Sona, pause », « Sona, plus fort » ou « Sona, mets du PNL ». Reconnaissance vocale de Windows, hors ligne (voix française de Windows nécessaire).", s.voiceControl) : ""}
-    ${desktop.platform === "win32" && s.voiceControl ? `<div class="set-row"><span class="set-text"><b>Écoute</b><small>${esc(s.voice?.error || (s.voice?.ready ? `Prêt (${s.voice.culture || "fr"})${s.voice.last ? ` · dernier : « ${s.voice.last} »` : ""}` : "Démarrage…"))}</small></span></div>` : ""}
     ${desktop.platform === "win32" ? toggleRow("desk-coverWallpaper", "Fond d'écran pochette", "Pendant la lecture, le fond d'écran de Windows devient la pochette en cours, floue. Ton fond d'écran revient quand tu coupes l'option.", s.coverWallpaper) : ""}
     ${desktop.platform === "win32" ? toggleRow("desk-taskbarProgress", "Progression dans la barre des tâches", "L'icône de Sona se remplit au fil du titre (orange en pause).", s.taskbarProgress) : ""}
     ${linkRow("data-desk-volume", icons.speaker, "Volume et préréglages", `${volLabel(vol.level)} · ${vol.presets.map((p) => p.label).join(", ")}`)}
-    ${desktop.platform === "win32" ? toggleRow("desk-gameMode", "Mode jeu automatique", "Un jeu en plein écran : plus de notifications, paroles en surimpression discrètes.", s.gameMode) : ""}
+    ${desktop.platform === "win32" ? toggleRow("desk-gameMode", "Mode jeu automatique", "Un jeu en plein écran : plus de notifications.", s.gameMode) : ""}
     ${linkRow("data-desk-name", icons.laptop, "Nom dans Relais", s.deviceNameShown)}
     ${linkRow("data-desk-server", icons.globe, "Serveur Sona", s.serverUrl || SERVER || "Par défaut")}`;
-  $("[data-desk-remote]", box).onclick = () => openRemotePairing();
-  for (const key of ["mini", "closeToTray", "launchAtLogin", "lyricsOverlay", "discordEnabled", "pauseOnLock", "pauseOnHeadphones", "gameMode", "micWatch", "voiceControl", "coverWallpaper", "taskbarProgress"]) {
+  for (const key of ["mini", "closeToTray", "launchAtLogin", "remoteEnabled", "discordEnabled", "pauseOnLock", "pauseOnHeadphones", "gameMode", "micWatch", "coverWallpaper", "taskbarProgress"]) {
     const input = $(`[data-setting="desk-${key}"]`, box);
     if (!input) continue;
     input.onchange = () => {
       haptic();
       desktop.set(key, input.checked)
-        .then(() => ["lyricsOverlay", "discordEnabled", "voiceControl"].includes(key) && setTimeout(renderDesktopSettings, ["discordEnabled", "voiceControl"].includes(key) ? 1500 : 0))
+        .then(() => key === "discordEnabled" && setTimeout(renderDesktopSettings, 1500))
         .catch((e) => { input.checked = !input.checked; toast(e.message); });
     };
   }
   $("[data-desk-volume]", box)?.addEventListener("click", volumeSheet);
-  $("[data-desk-overlay-pos]", box)?.addEventListener("click", async () => {
-    await desktop.set("overlayPosition", s.overlayPosition === "top" ? "bottom" : "top");
-    renderDesktopSettings();
-  });
   $("[data-desk-discord]", box)?.addEventListener("click", async () => {
     const id = await askText({ title: "Application Discord", value: s.discordClientId, placeholder: "Application de Sona", confirm: "Enregistrer",
       hint: "Rien à faire : Sona utilise sa propre application Discord. Laisse vide, sauf pour afficher le statut avec ta propre application (son Application ID, sur discord.com/developers). Discord doit être ouvert sur ce PC, avec « Partager mon activité » activé." });

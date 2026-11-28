@@ -309,24 +309,11 @@ html.desktop .login .btn { background: #fff; color: #000; box-shadow: inset 0 1p
 
 /* ── Télécommande : association ──────────────────────────────────────── */
 
-html.desktop .pair-sheet .sheet { width: min(560px, 92vw); }
-.pair-qr { display: grid; grid-template-columns: 200px 1fr; gap: 20px; align-items: center; margin: 8px 0 18px; }
 .qr-frame { position: relative; width: 200px; height: 200px; padding: 12px; border-radius: 26px; background: #fff;
   box-shadow: 0 0 0 6px rgba(255, 255, 255, .08), 0 18px 46px rgba(0, 0, 0, .45), 0 0 50px color-mix(in srgb, var(--accent) 25%, transparent); }
 .qr-frame img { width: 100%; height: 100%; image-rendering: pixelated; border-radius: 10px; }
-.pair-steps { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.pair-steps b { font-size: 17px; }
-.pair-steps span { color: var(--text-2); font-size: 14px; }
-.pair-steps code { font: 600 13px/1.4 ui-monospace, "Cascadia Code", Consolas, monospace; color: var(--text); background: rgba(0, 0, 0, .25); padding: 7px 10px; border-radius: 10px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07); user-select: text; overflow-wrap: anywhere; }
-.pair-steps small { color: var(--text-3); font-size: 12px; overflow-wrap: anywhere; }
-.pair-off { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; padding: 26px 16px; margin: 8px 0 16px; border-radius: 18px; background: rgba(255, 255, 255, .04); }
-.pair-off .icon { font-size: 34px; color: var(--text-3); margin-bottom: 6px; }
-.pair-off small { color: var(--text-2); }
-.pair-clients { display: flex; flex-wrap: wrap; gap: 8px; margin: -4px 0 16px; }
 .pair-client { display: inline-flex; align-items: center; gap: 7px; padding: 7px 13px 7px 11px; border-radius: 999px; font-size: 13.5px;
   background: rgba(48, 209, 88, .12); box-shadow: inset 0 0 0 1px rgba(48, 209, 88, .3); }
-.pair-client .dot { width: 7px; height: 7px; border-radius: 50%; background: #30d158; box-shadow: 0 0 10px #30d158; }
-.pair-client small { color: var(--text-2); }
 .fine-print { font-size: 12.5px; color: var(--text-3); margin: 14px 2px 0; }
 
 @media (prefers-reduced-motion: reduce) {
