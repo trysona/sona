@@ -451,3 +451,18 @@ def test_guests_cannot_hand_out_device_sessions_or_adopt_accounts(client):
     started = client.post("/auth/device/start", json={"name": "TV"}).json()
     assert client.post("/auth/device/approve", headers=guest, json={"user_code": started["user_code"]}).status_code == 403
     assert client.post("/auth/link-legacy", headers=guest, json={"token": "vieux"}).status_code == 403
+
+
+def test_a_sona_account_uses_the_lastfm_name_linked_in_the_accounts_service(client):
+    alice = person(client, "alice")
+    me = client.get("/auth/me", headers=alice).json()
+    assert me["username"] == "Alice" and me["sona"] is True  # jamais le nom interne « sb:… »
+    live = client.get("/stats/live", headers=alice).json()["lastfm"]
+    assert live == {**live, "connected": False, "username": None}
+    assert client.get("/stats/import/lastfm", headers=alice).json()["configured"] is False
+    assert client.post("/stats/import/lastfm", headers=alice).status_code == 400
+    assert client.post("/library/lastfm-loved/import", headers=alice).status_code == 400
+    client.fake.lastfm["uid-alice"] = {"username": "alice_lfm", "scrobbling": False}
+    live = client.get("/stats/live", headers=alice).json()["lastfm"]
+    assert (live["connected"], live["enabled"], live["username"]) == (True, False, "alice_lfm")
+    assert client.get("/stats/import/lastfm", headers=alice).json()["configured"] is True

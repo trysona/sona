@@ -121,6 +121,12 @@ class SonaAccounts:
         self._standing[uid] = (now + VERIFY_CACHE_SECONDS, got)
         return got
 
+    async def lastfm_link(self, uid: str) -> dict:
+        """Last.fm relié à un compte Sona : {"username": pseudo ou None, "scrobbling": bool}."""
+        resp = await self._get(f"/internal/lastfm/{uid}")
+        resp.raise_for_status()
+        return resp.json()
+
     async def friend_ids(self, uid: str) -> list[str]:
         resp = await self._get(f"/internal/friends/{uid}")
         resp.raise_for_status()

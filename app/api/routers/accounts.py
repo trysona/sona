@@ -30,11 +30,15 @@ class AccountOut(BaseModel):
     scrobble_to_lastfm: bool
     created_at: str | None
     share_listening: bool = True
+    # Compte Sona (pas un ancien compte Last.fm) : les apps ne l'annoncent pas comme « Last.fm · … ».
+    sona: bool = False
 
     @classmethod
     def from_account(cls, a: Account) -> "AccountOut":
+        internal = a.lastfm_username.startswith("sb:")  # `sb:<uuid>` : jamais montré
         return cls(
-            id=a.id, username=a.lastfm_username, display_name=a.display_name, avatar_url=a.avatar_url,
+            id=a.id, sona=internal or bool(a.supabase_uid),
+            username=(a.display_name or "Sona") if internal else a.lastfm_username, display_name=a.display_name, avatar_url=a.avatar_url,
             status=a.status, is_admin=a.is_admin, scrobble_to_lastfm=a.scrobble_to_lastfm, created_at=a.created_at,
             share_listening=a.share_listening,
         )

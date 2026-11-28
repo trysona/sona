@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from app.api.auth import require_token
 from app.api.routers import uploads
+from app.api.routers.stats import lastfm_link
 from app.api.schemas import LibraryAddRequest, LibraryItemOut
 from app.api.state import ApiDeps
 from app.services import lookup
@@ -189,7 +190,7 @@ async def loved_import_status(deps: ApiDeps = Depends(require_token)) -> LovedIm
 
 @router.post("/lastfm-loved/import", response_model=LovedImportOut, status_code=status.HTTP_202_ACCEPTED)
 async def start_loved_import(deps: ApiDeps = Depends(require_token)) -> LovedImportOut:
-    username = deps.account.lastfm_username if deps.account else deps.settings.lastfm_user
+    username, _, _ = await lastfm_link(deps)
     if not username or deps.lastfm_auth is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Aucun compte Last.fm relié.")
     current = _loved_imports.get(deps.user_id)
