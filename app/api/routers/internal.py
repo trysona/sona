@@ -64,6 +64,8 @@ async def moderate_content(kind: str, ref: str, action: str, payload: ContentIn,
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Propriétaire introuvable.")
     if action == "hide":
         done = await deps.repo.playlist_set_visibility(int(ref), owner, "private")
+        if done:  # masquée : ses liens publics ne la montrent plus non plus
+            await deps.repo.share_revoke_playlist(int(ref))
     else:
         done = await deps.repo.playlist_get(owner, int(ref)) is not None
         if done:

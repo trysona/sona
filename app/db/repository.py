@@ -1481,7 +1481,9 @@ class Repository:
             "DELETE FROM playlist_tracks WHERE playlist_id IN (SELECT id FROM playlists WHERE id=? AND user_id=?)",
             (playlist_id, user_id),
         )
-        await self._db.conn.execute("DELETE FROM playlists WHERE id=? AND user_id=?", (playlist_id, user_id))
+        gone = await self._db.conn.execute("DELETE FROM playlists WHERE id=? AND user_id=?", (playlist_id, user_id))
+        if gone.rowcount:
+            await self.share_revoke_playlist(playlist_id)
         await self._db.conn.commit()
 
     async def playlist_tracks(self, playlist_id: int) -> list[PlaylistEntry]:
@@ -1761,6 +1763,11 @@ class Repository:
         )
         await self._db.conn.commit()
         return cursor.rowcount > 0
+
+    async def share_revoke_playlist(self, playlist_id: int) -> None:
+        """Tous les liens publics d'une playlist (supprimée, ou masquée par la modération)."""
+        await self._db.conn.execute("UPDATE share_links SET revoked=1 WHERE kind='playlist' AND ref=?", (str(playlist_id),))
+        await self._db.conn.commit()
 
     async def share_viewed(self, token: str) -> None:
         await self._db.conn.execute(

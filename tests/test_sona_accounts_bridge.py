@@ -481,3 +481,17 @@ def test_a_kicked_moderator_loses_every_power():
             attempt()
     party.join(room.code, 2, "Modo", None)
     assert party.role_of(room, 2) == "listener"
+
+
+def test_hiding_or_deleting_a_playlist_kills_its_public_links(client):
+    alice = person(client, "alice")
+    for ending in ("hide", "delete"):
+        pid = client.post("/me/playlists", headers=alice, json={"name": ending, "tracks": [TRACK]}).json()["id"]
+        link = client.post("/me/shares", headers=alice, json={"kind": "playlist", "id": str(pid)}).json()
+        assert client.get(f"/s/{link['token']}").status_code == 200
+        if ending == "hide":
+            got = client.post(f"/internal/content/playlist/{pid}/hide", headers=INTERNAL, json={"owner": "uid-alice"})
+            assert got.status_code == 200
+        else:
+            assert client.delete(f"/me/playlists/{pid}", headers=alice).status_code == 204
+        assert client.get(f"/s/{link['token']}").status_code != 200
