@@ -16,6 +16,7 @@ from app.services import alerts, presence
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["comptes"])
+_tasks: set[asyncio.Task] = set()
 
 
 class AccountOut(BaseModel):
@@ -132,7 +133,9 @@ async def login_with_lastfm(payload: LastfmLoginIn, deps: ApiDeps = Depends(get_
         session.username, profile.display_name, profile.avatar_url, session.key, is_admin, deps.settings.api_user_id,
     )
     if created and account.status == "pending":
-        asyncio.create_task(_notify_admins(deps, account))
+        task = asyncio.create_task(_notify_admins(deps, account))
+        _tasks.add(task)  # sans cette référence, la tâche peut disparaître avant la fin
+        task.add_done_callback(_tasks.discard)
     token = await deps.repo.create_session(account.id)
     return LoginOut(session_token=token, account=AccountOut.from_account(account))
 

@@ -575,7 +575,9 @@ def _warm(deps: ApiDeps, source: str, source_id: str, quality: str, fmt: str) ->
         finally:
             _warming.discard(key)
 
-    asyncio.create_task(run())
+    task = asyncio.create_task(run())
+    _analysis_tasks.add(task)
+    task.add_done_callback(_analysis_tasks.discard)
 
 
 async def _proxy(request: Request, live: live_stream.LiveSource) -> StreamingResponse:
