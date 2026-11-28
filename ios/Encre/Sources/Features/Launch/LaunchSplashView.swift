@@ -109,6 +109,8 @@ struct LaunchSplashView: View {
         }
         cover.fill(Self.background, style: FillStyle(eoFill: true))
         hole.fill(SonaMark.color).opacity(1 - clamp(q / 0.35))
+        // Contour blanc, de la même épaisseur tout du long : le « S » reste lisible pendant qu'on y entre.
+        hole.stroke(Color.white, style: StrokeStyle(lineWidth: 2.5, lineJoin: .round))
     }
 
     private func word(_ p: Double, size: CGFloat, leaving q: Double) -> some View {
