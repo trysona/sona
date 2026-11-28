@@ -784,9 +784,11 @@ struct AppAccount: Codable, Identifiable, Hashable {
     var scrobbleToLastfm: Bool
     var createdAt: String?
     var shareListening: Bool?
+    /// Compte Sona (et non un ancien compte Last.fm). Absent des anciens serveurs.
+    var sona: Bool?
 
     enum CodingKeys: String, CodingKey {
-        case id, username, status
+        case id, username, status, sona
         case displayName = "display_name"
         case avatarURL = "avatar_url"
         case isAdmin = "is_admin"
@@ -796,6 +798,8 @@ struct AppAccount: Codable, Identifiable, Hashable {
     }
 
     var name: String { displayName ?? username }
+    /// Sous le nom, dans Réglages.
+    var kindLabel: String { sona == true ? "Compte Sona" : "Last.fm · \(username)" }
 }
 
 struct AuthConfig: Codable {

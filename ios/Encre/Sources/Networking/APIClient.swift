@@ -32,7 +32,9 @@ enum APIError: LocalizedError {
             return "Réponse du serveur incompréhensible."
         case .server(let status, let message):
             switch status {
-            case 401, 403: return "Jeton refusé par le serveur — vérifie-le dans Réglages."
+            // Le serveur explique le refus (hôte qui n'a pas ouvert les ajouts, compte en attente…) : on le dit tel quel.
+            case 401: return message.isEmpty ? "Session expirée : reconnecte-toi." : message
+            case 403: return message.isEmpty ? "Accès refusé." : message
             case 404: return message.isEmpty ? "Introuvable." : message
             case 502, 503, 504:
                 // Sans texte : c'est le proxy HTTPS qui répond à la place de

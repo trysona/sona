@@ -25,7 +25,7 @@ struct SettingsView: View {
                             .frame(width: 56, height: 56)
                         VStack(alignment: .leading, spacing: 3) {
                             Text(account.name).font(Typo.headline)
-                            Text(account.id == nil ? "Jeton administrateur" : "Last.fm · \(account.username)")
+                            Text(account.id == nil ? "Jeton administrateur" : account.kindLabel)
                                 .font(Typo.rowSubtitle)
                                 .foregroundStyle(Tone.secondary)
                         }
@@ -348,7 +348,7 @@ struct AdminView: View {
                         Text("ADMIN").font(.system(size: 9, weight: .bold)).foregroundStyle(Tone.secondary)
                     }
                 }
-                Text("Last.fm · \(account.username)").font(Typo.rowSubtitle).foregroundStyle(Tone.secondary)
+                Text(account.kindLabel).font(Typo.rowSubtitle).foregroundStyle(Tone.secondary)
             }
             Spacer()
             if busyId == account.id {
