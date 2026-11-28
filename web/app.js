@@ -7824,7 +7824,9 @@ if ("mediaSession" in navigator) {
 }
 
 document.addEventListener("keydown", (e) => {
-  if (e.target.matches("input, textarea")) return;
+  if (e.target.matches("input, textarea, select")) return;
+  // Bouton atteint au clavier : Espace l'active, comme partout (au clic de souris, Espace reste lecture / pause).
+  if (e.code === "Space" && e.target.matches("button:focus-visible, a:focus-visible, [role=button]:focus-visible, summary:focus-visible")) return;
   if (e.code === "Space") { e.preventDefault(); toggle(); }
   else if (e.key === "Escape" && $(".sheet-wrap")) return;
   else if (e.key === "Escape" && state.npOpen) closeNowPlaying();
@@ -7832,7 +7834,7 @@ document.addEventListener("keydown", (e) => {
   else if (e.key === "ArrowLeft" && (e.metaKey || e.ctrlKey)) prev();
   else if (e.key === "ArrowRight" && audio.src) audio.currentTime += 10;
   else if (e.key === "ArrowLeft" && audio.src) audio.currentTime -= 10;
-  else if (e.key.toLowerCase() === "l" && audio.src) openNowPlaying("lyrics", true);
+  else if (e.key.toLowerCase() === "l" && audio.src && !e.ctrlKey && !e.metaKey) openNowPlaying("lyrics", true);
   else if (e.key.toLowerCase() === "q" && audio.src && !e.ctrlKey && !e.metaKey) (drawerMode() ? toggleDrawer("queue") : openNowPlaying("queue", true));
   else if (e.key.toLowerCase() === "c" && audio.src && !e.ctrlKey && !e.metaKey) (drawerMode() ? toggleDrawer("credits") : openNowPlaying("credits", true));
   else if (e.key.toLowerCase() === "v" && state.npOpen && desktop && !e.ctrlKey && !e.metaKey) cycleNpStyle();
