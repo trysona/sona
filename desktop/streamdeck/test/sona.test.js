@@ -11,7 +11,6 @@ import { SonaClient, readSonaSettings } from "../src/sona.js";
 
 const require = createRequire(import.meta.url);
 const { RemoteServer } = require("../../src/remote-server.js");
-const here = path.dirname(new URL(import.meta.url).pathname);
 
 const until = async (fn, ms = 3000) => {
   const end = Date.now() + ms;
@@ -35,8 +34,6 @@ test("le plugin trouve Sona, suit la lecture et envoie les commandes", async () 
   const server = new RemoteServer({
     getState: () => state,
     command: async (body) => { seen.push(body); return true; },
-    remoteRoot: path.join(here, "..", "..", "remote"),
-    iconsRoot: path.join(here, "..", "..", "..", "web", "icons"),
   });
   await server.start(0, "cle-0123456789");
   const statuses = [];
@@ -66,8 +63,6 @@ test("sans clé lisible, le plugin pilote quand même Sona sur ce PC", async () 
   const server = new RemoteServer({
     getState: () => ({ track: { title: "Titre" }, paused: false }),
     command: async (body) => { seen.push(body); return true; },
-    remoteRoot: path.join(here, "..", "..", "remote"),
-    iconsRoot: path.join(here, "..", "..", "..", "web", "icons"),
   });
   await server.start(0, "cle-inconnue-du-plugin");
   // Réglages illisibles, mais Sona a noté son vrai port.
@@ -97,8 +92,6 @@ test("un appui juste après l'ouverture de Sona n'attend pas le prochain essai",
   const server = new RemoteServer({
     getState: () => ({ track: null }),
     command: async (body) => { seen.push(body); return true; },
-    remoteRoot: path.join(here, "..", "..", "remote"),
-    iconsRoot: path.join(here, "..", "..", "..", "web", "icons"),
   });
   await server.start(0, "cle-0123456789");
   const port = server.port;
