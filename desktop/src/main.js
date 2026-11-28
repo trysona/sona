@@ -147,7 +147,7 @@ app.whenReady().then(async () => {
 });
 
 app.on("before-quit", () => { quitting = true; });
-app.on("will-quit", () => { remote.stop(); iphone.stop(); discord.close(); gameMode.stop(); micWatch.stop(); voice.stop(); shortcuts.apply({}, () => {}); });
+app.on("will-quit", () => { remote.stop(); iphone.stop(); discord.close(); gameMode.stop(); micWatch.stop(); voice.stop(); shortcuts.apply({}, () => {}); wallpaper?.restoreNow(); });
 
 /** PC verrouillé ou en veille : pause ; déverrouillé : la musique repart (si c'est nous qui l'avions coupée). */
 function watchPower() {
@@ -337,7 +337,8 @@ function createWindow() {
       }).show();
     }
   });
-  win.on("closed", () => { win = null; if (mini) mini.close(); });
+  // Les paroles en surimpression se ferment aussi (réglage gardé) : seules, elles empêchaient Sona de quitter.
+  win.on("closed", () => { win = null; if (mini) mini.close(); overlay?.close(); });
 }
 
 function visibleOnSomeScreen(b) {
@@ -836,7 +837,9 @@ ipcMain.on("desktop:auth", (_e, url) => {
   });
   let finished = false;
   const check = (target) => {
-    if (finished || !origin || !String(target).startsWith(origin)) return;
+    if (finished || !origin) return;
+    // Origine exacte : « https://serveur.exemple.pirate.com » commence aussi par l'adresse du serveur.
+    try { if (new URL(target).origin !== origin) return; } catch { return; }
     finished = true;
     send("desktop:auth-done", { authorized: true });
     setImmediate(() => auth.close());

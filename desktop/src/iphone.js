@@ -82,13 +82,16 @@ function start() {
     }
   });
   helper.stderr.on("data", () => {});
-  helper.on("exit", () => {
+  // Programme parti (ou jamais lancé) : les demandes en cours sont refusées au lieu d'attendre sans fin.
+  const gone = () => {
     helper = null;
     for (const p of pending.values()) p.reject(new Error("Le module iPhone s'est arrêté. Réessaie."));
     pending.clear();
     update({ busy: null, progress: null, twoFactor: null });
-  });
-  helper.on("error", () => { helper = null; model.available = false; });
+  };
+  helper.stdin.on("error", () => {}); // écrire à un programme mort ne doit pas faire tomber Sona
+  helper.on("exit", gone);
+  helper.on("error", () => { model.available = false; gone(); });
   return helper;
 }
 

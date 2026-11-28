@@ -90,16 +90,20 @@ async function install() {
     if (!res.ok || !res.body) throw new Error(`Téléchargement impossible (code ${res.status}).`);
     const total = Number(res.headers.get("content-length")) || latest.setup.size || 0;
     const hash = crypto.createHash("sha256");
-    const out = fs.createWriteStream(dest);
+    // Écriture par promesses : disque plein = message d'erreur (un flux le laissait planter ou bloquer l'app).
+    const out = await fs.promises.open(dest, "w");
     let received = 0;
     let last = 0;
-    for await (const chunk of res.body) {
-      hash.update(chunk);
-      received += chunk.length;
-      if (!out.write(chunk)) await new Promise((r) => out.once("drain", r));
-      if (total && Date.now() - last > 150) { last = Date.now(); update({ downloading: received / total }); }
+    try {
+      for await (const chunk of res.body) {
+        hash.update(chunk);
+        received += chunk.length;
+        await out.writeFile(chunk);
+        if (total && Date.now() - last > 150) { last = Date.now(); update({ downloading: received / total }); }
+      }
+    } finally {
+      await out.close();
     }
-    await new Promise((resolve, reject) => out.end((err) => (err ? reject(err) : resolve())));
     const digest = hash.digest("hex");
     if (!latest.setup.sha256 || digest.toLowerCase() !== String(latest.setup.sha256).toLowerCase()) {
       fs.rmSync(dest, { force: true });
