@@ -1,5 +1,5 @@
 //! Anisette locale : l'identité « ce PC » demandée à Apple vient des composants iCloud installés, comme dans
-//! Sideloadly. Les serveurs d'anisette publics sont refusés par Apple (401 au provisionnement) depuis novembre 2026.
+//! Sideloadly. Secours quand le serveur d'anisette d'isideload ne passe pas.
 //!
 //! isideload ne sait parler qu'à un serveur d'anisette : on lui en sert un sur 127.0.0.1, avec une identité déjà
 //! « provisionnée » pour qu'il ne redemande rien à Apple.
@@ -8,6 +8,7 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpListener;
 
 use isideload::anisette::remote_v3::RemoteV3AnisetteProvider;
+use isideload::anisette::AnisetteClientInfo;
 use isideload::util::storage::{InMemoryStorage, SideloadingStorage};
 use sha2::{Digest, Sha256};
 
@@ -76,7 +77,15 @@ pub fn wire(provider: RemoteV3AnisetteProvider) -> Result<RemoteV3AnisetteProvid
     plist::to_writer_xml(&mut bytes, &state).map_err(|e| e.to_string())?;
     let storage = InMemoryStorage::new();
     storage.store_data("anisette_state", &bytes).map_err(|e| e.to_string())?;
-    Ok(provider.set_url(&format!("http://127.0.0.1:{}", serve(otp)?)).set_storage(Box::new(storage)))
+    // Ce qu'annoncent les serveurs d'isideload : sans cela il le demanderait à notre serveur, qui ne le sert pas.
+    let client = AnisetteClientInfo {
+        client_info: "<MacBookPro13,3> <Mac OS X;10.12.6;16G29> <com.apple.AuthKit/1 (com.apple.akd/1.0)>".into(),
+        user_agent: "akd/1.0 CFNetwork/811.5.4 Darwin/16.7.0".into(),
+    };
+    Ok(provider
+        .set_url(&format!("http://127.0.0.1:{}", serve(otp)?))
+        .set_storage(Box::new(storage))
+        .set_client_info_override(Some(client)))
 }
 
 #[cfg(test)]

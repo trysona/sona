@@ -394,19 +394,11 @@ async fn login(email: String, password: String) -> Result<AppleAccount, String> 
             break;
         }
         let raw = LAST_RAW_ERROR.lock().unwrap().clone();
-        // iCloud a fourni le code de ce PC et Apple refuse quand même : les serveurs publics n'y changeraient
-        // rien (Apple les rejette), et chaque essai de plus rapproche le blocage de l'adresse.
-        if *server == LOCAL_ANISETTE && !raw.starts_with("anisette locale") {
-            break;
-        }
         if !is_anisette_failure(&raw) || i + 1 == ANISETTE_SERVERS.len() {
             break;
         }
         log_error(&format!("Anisette : {server} a échoué, identité oubliée, essai du serveur suivant"));
-        // L'anisette locale ne garde rien : l'identité enregistrée est celle d'un serveur, on la préserve.
-        if *server != LOCAL_ANISETTE {
-            forget_anisette_identity();
-        }
+        forget_anisette_identity();
     }
     if result.is_ok() {
         emit("signed-in", json!({ "email": email }));
@@ -429,14 +421,9 @@ async fn login(email: String, password: String) -> Result<AppleAccount, String> 
     result
 }
 
-/// Anisette essayée dans l'ordre : les composants iCloud de ce PC, puis les serveurs de SideStore et de la communauté.
-const ANISETTE_SERVERS: [&str; 5] = [
-    LOCAL_ANISETTE,
-    "https://ani.stikstore.app",
-    "https://ani.sidestore.io",
-    "https://ani.sidestore.zip",
-    "https://ani.846969.xyz",
-];
+/// Anisette essayée dans l'ordre : le serveur par défaut d'isideload, puis les composants iCloud de ce PC. Deux
+/// essais au plus : chaque refus d'Apple rapproche le blocage.
+const ANISETTE_SERVERS: [&str; 2] = [isideload::anisette::remote_v3::DEFAULT_ANISETTE_V3_URL, LOCAL_ANISETTE];
 
 const LOCAL_ANISETTE: &str = "ce PC";
 
@@ -779,7 +766,7 @@ async fn sign_and_install(
     let result = async {
         // Par câble, ou en Wi-Fi si l'iPhone est débranché mais sur le même réseau.
         let provider = wifi::provider_for(&udid).await?;
-        let mut sideloader = SideloaderBuilder::<isideload::util::callbacks::MaxCertsCallbackBox>::new(session, email)
+        let mut sideloader = SideloaderBuilder::<isideload::util::callbacks::MaxCertsCallbackBox, isideload::util::callbacks::ExtensionsBehaviorCallbackBox>::new(session, email)
             .team_selection(TeamSelection::First)
             .max_certs_behavior(MaxCertsBehavior::Prompt(Box::new(own_certs_only)))
             .machine_name(LABEL.to_string())
@@ -806,6 +793,8 @@ async fn sign_and_install(
                     let id = id_for_cb.clone();
                     async move { progress(&id, "signing", (p / 0.5).min(0.95)) }
                 }),
+                None, // fichier d'appairage et identifiant : seulement pour installer AltStore
+                None,
             )
             .await
             .map_err(short_error)?;

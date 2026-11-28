@@ -19,7 +19,7 @@ hex = "0.4"
 reqwest = { version = "0.13", default-features = false, features = ["native-tls", "stream", "http2", "system-proxy"] }
 sha2 = "0.11"
 keyring = { version = "3", features = ["windows-native", "apple-native", "linux-native"] }
-isideload = "0.4.0"
+isideload = "0.5.2"
 idevice = { version = "0.1.68", default-features = false, features = ["ring", "usbmuxd", "installation_proxy", "tcp"] }
 plist = "1"
 mdns-sd = "0.21.4"
