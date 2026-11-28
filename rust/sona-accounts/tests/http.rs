@@ -208,6 +208,19 @@ async fn account_export_and_deletion() {
 }
 
 #[tokio::test]
+async fn the_last_admin_keeps_their_music_when_deletion_is_refused() {
+    let music = common::mock::start(|_| (204, String::new())).await;
+    let url = music.url.clone();
+    let Some(api) = Api::with(move |cfg, _| cfg.music_internal_url = Some(url)).await else { return };
+    let (admin_id, admin) = staff(&api, "boss", "admin").await;
+    let (st, out) = api.call("DELETE", "/account", Some(&admin), Some(json!({ "confirm": "SUPPRIMER MON COMPTE" }))).await;
+    assert_eq!(st, StatusCode::FORBIDDEN);
+    assert_eq!(out["message"], "C'est le dernier admin : nommes-en un autre d'abord.");
+    assert_eq!(music.requests().len(), 0, "rien ne doit être effacé");
+    assert_eq!(api.db.su_scalar(&format!("select count(*) from auth.users where id = '{admin_id}'")).await, "1");
+}
+
+#[tokio::test]
 async fn an_admin_deletes_an_account_but_never_another_admin_or_themselves() {
     let Some(api) = Api::new().await else { return };
     let (admin_id, admin) = staff(&api, "boss", "admin").await;
