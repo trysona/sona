@@ -109,9 +109,6 @@ struct CarModeView: View {
                 }
                 HStack(spacing: 14) {
                     wideButton(liked ? "heart.fill" : "heart", liked ? "Aimé" : "J'aime") { Task { await toggleLike() } }
-                    wideButton("dial.medium", "Radio DJ") {
-                        if let track = player.current { Task { try? await player.playDJRadio(from: track) } }
-                    }
                 }
             }
             .padding(20)

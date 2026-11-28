@@ -177,10 +177,6 @@ final class APIClient {
         try await sendNoContent(try request("/auth/logout", method: "POST"))
     }
 
-    func adminAccounts() async throws -> [AppAccount] {
-        try await send(try request("/admin/accounts"))
-    }
-
     // MARK: - Santé de la lecture (admin)
 
     func streamingStatus() async throws -> StreamingStatus {
@@ -198,11 +194,6 @@ final class APIClient {
 
     func updateYtdlp() async throws -> AdminResult {
         try await send(try request("/admin/ytdlp/update", method: "POST"))
-    }
-
-    /// `approve`, `reject`, `promote` ou `demote`.
-    func adminDecide(accountId: Int, action: String) async throws -> AppAccount {
-        try await send(try request("/admin/accounts/\(accountId)/\(action)", method: "POST"))
     }
 
     // MARK: - Recherche
@@ -287,7 +278,7 @@ final class APIClient {
 
     /// Nouveau tirage à chaque appel (le « mix » Deezer de l'artiste, ou ses
     /// titres populaires mélangés pour les autres sources).
-    /// Radio DJ : la suite de la station à partir de `seed` (tempos qui
+    /// La suite à partir de `seed` (tempos qui
     /// s'enchaînent, artistes alternés), sans les titres de `exclude`.
     func djRadio(seed: Track, exclude: [String]) async throws -> [Track] {
         try await send(try request("/djradio/\(seed.source)/\(seed.sourceId)", query: [
@@ -543,16 +534,6 @@ final class APIClient {
         try await send(try request("/home/mixes", query: refresh ? [URLQueryItem(name: "refresh", value: "true")] : []))
     }
 
-    /// Mix « selon le moment » : l'heure, le jour, et la météo si la position est donnée.
-    func mood(latitude: Double? = nil, longitude: Double? = nil) async throws -> MoodMix {
-        var query = [URLQueryItem(name: "tz", value: TimeZone.current.identifier)]
-        if let latitude, let longitude {
-            query.append(URLQueryItem(name: "lat", value: String(format: "%.2f", latitude)))
-            query.append(URLQueryItem(name: "lon", value: String(format: "%.2f", longitude)))
-        }
-        return try await send(try request("/home/mood", query: query))
-    }
-
     /// « Reconnaître un titre » : l'extrait enregistré (WAV) est identifié par le serveur.
     func recognize(audio: Data) async throws -> RecognizeResult {
         var req = try request("/recognize", method: "POST", bodyData: audio)
@@ -564,11 +545,6 @@ final class APIClient {
     /// « Si tu aimes ce titre » : radio d'artistes proches jamais écoutés.
     func discoverRadio(source: String, artistId: String, artist: String) async throws -> [Track] {
         try await send(try request("/discover/radio/\(source)/\(artistId)", query: [URLQueryItem(name: "artist", value: artist)]))
-    }
-
-    /// Titre du jour : une découverte, la même toute la journée.
-    func dailyTrack() async throws -> DailyTrack {
-        try await send(try request("/home/daily"))
     }
 
     // MARK: - Page publique « J'écoute »
@@ -687,10 +663,6 @@ final class APIClient {
         try await send(try request("/releases/upcoming"))
     }
 
-    func memories() async throws -> [Memory] {
-        try await send(try request("/memories", query: [URLQueryItem(name: "tz", value: TimeZone.current.identifier)]))
-    }
-
     /// Instrumentale YouTube du titre (à la même durée), ou nil.
     func instrumental(for track: Track) async -> (source: String, id: String)? {
         struct Found: Decodable { let source: String; let sourceId: String
@@ -766,31 +738,6 @@ final class APIClient {
 
     func listeningPlaces() async throws -> [ListeningPlace] {
         try await send(try request("/map"))
-    }
-
-    func challenges() async throws -> Challenges {
-        try await send(try request("/challenges", query: [URLQueryItem(name: "tz", value: TimeZone.current.identifier)]))
-    }
-
-    /// Annonce du DJ vocal : texte + MP3 d'une voix neuronale (nil si
-    /// indisponible côté serveur).
-    func djIntro(for track: Track, after previous: Track?, voice: String) async throws -> (text: String, audio: Data?) {
-        struct Intro: Decodable { let text: String; let audio: String? }
-        var query = [
-            URLQueryItem(name: "title", value: track.title),
-            URLQueryItem(name: "artist", value: track.artist),
-            URLQueryItem(name: "voice", value: voice),
-            URLQueryItem(name: "tz", value: TimeZone.current.identifier),
-        ]
-        if let previous {
-            query.append(URLQueryItem(name: "prev_title", value: previous.title))
-            query.append(URLQueryItem(name: "prev_artist", value: previous.artist))
-        }
-        if let year = track.year.flatMap({ Int($0.prefix(4)) }) {
-            query.append(URLQueryItem(name: "year", value: String(year)))
-        }
-        let intro: Intro = try await send(try request("/dj/intro", query: query))
-        return (intro.text, intro.audio.flatMap { Data(base64Encoded: $0) })
     }
 
     // MARK: - Sona Connect

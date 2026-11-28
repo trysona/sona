@@ -8,9 +8,6 @@ struct HomeView: View {
     @State private var radioError: String?
     @State private var releases: [Release] = []
     @State private var soon: [Album] = []
-    @State private var memories: [Memory] = []
-    @State private var daily: DailyTrack?
-    @State private var mood: MoodMix?
     @State private var exclusives: [Track] = []
 
     var body: some View {
@@ -20,14 +17,6 @@ struct HomeView: View {
 
                 if let hero = viewModel.heroTrack {
                     heroCard(hero).padding(.horizontal, 20).reveal(0)
-                }
-
-                if let daily, let track = daily.track {
-                    dailyCard(track, reason: daily.reason).padding(.horizontal, 20).reveal(1)
-                }
-
-                if let mood, let first = mood.tracks.first {
-                    moodCard(mood, first: first).padding(.horizontal, 20).reveal(1)
                 }
 
                 if !viewModel.mixes.isEmpty {
@@ -75,10 +64,6 @@ struct HomeView: View {
                             path.append(Route.album(source: release.source, id: release.sourceId))
                         }
                     }
-                }
-
-                if !memories.isEmpty {
-                    MemoriesCard(memories: memories).padding(.horizontal, 20).reveal(1)
                 }
 
                 HStack(spacing: 12) {
@@ -191,80 +176,10 @@ struct HomeView: View {
     private func loadExtras() async {
         async let fresh = try? APIClient.shared.releases()
         async let ahead = try? APIClient.shared.upcomingReleases()
-        async let past = try? APIClient.shared.memories()
-        async let pick = try? APIClient.shared.dailyTrack()
-        // Dernière position connue (carte) : la météo du mix, sans redemander.
-        let place = LocationProvider.lastLocation
-        async let moment = try? APIClient.shared.mood(latitude: place?.0, longitude: place?.1)
         async let special = try? APIClient.shared.exclusives()
         releases = await fresh ?? releases
         soon = await ahead ?? soon
-        memories = await past ?? memories
-        daily = await pick ?? daily
-        mood = await moment ?? mood
         exclusives = await special ?? exclusives
-    }
-
-    /// Mix « selon le moment » : pluie, soleil, nuit, soirée…
-    private func moodCard(_ mood: MoodMix, first: Track) -> some View {
-        Button {
-            player.play(first, context: mood.tracks, name: "\(mood.emoji) \(mood.title)")
-        } label: {
-            HStack(spacing: 14) {
-                Text(mood.emoji).font(.system(size: 40)).frame(width: 56)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(moodEyebrow(mood)).font(Typo.caption).foregroundStyle(.white.opacity(0.75)).lineLimit(1)
-                    Text(mood.title).font(Typo.headline).foregroundStyle(.white)
-                    Text(mood.subtitle).font(Typo.caption).foregroundStyle(.white.opacity(0.8)).lineLimit(1)
-                }
-                Spacer(minLength: 4)
-                Image(systemName: "play.fill").font(.system(size: 16, weight: .bold)).foregroundStyle(.black)
-                    .frame(width: 40, height: 40).background(Circle().fill(.white))
-            }
-            .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(Tone.surface)
-            )
-        }
-        .buttonStyle(.pressable(scale: 0.98))
-    }
-
-    private func moodEyebrow(_ mood: MoodMix) -> String {
-        guard let weather = mood.weather else { return "SELON LE MOMENT" }
-        let temp = weather.temperature.map { " · \(Int($0.rounded())) °C" } ?? ""
-        return "SELON LA MÉTÉO · \(weather.label ?? "")\(temp)".uppercased()
-    }
-
-    /// « Titre du jour » : une découverte, la même toute la journée.
-    private func dailyCard(_ track: Track, reason: String) -> some View {
-        Button {
-            player.play(track, context: [track], name: "Titre du jour")
-        } label: {
-            HStack(spacing: 14) {
-                Artwork(url: track.coverURL, cornerRadius: 10)
-                    .frame(width: 64, height: 64)
-                    .shadow(color: .black.opacity(0.4), radius: 8, y: 4)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("✨ TITRE DU JOUR").font(Typo.caption).foregroundStyle(.white.opacity(0.75))
-                    Text(track.title).font(Typo.headline).foregroundStyle(.white).lineLimit(1)
-                    Text(track.artist).font(Typo.rowSubtitle).foregroundStyle(.white.opacity(0.8)).lineLimit(1)
-                    Text(reason).font(Typo.caption).foregroundStyle(.white.opacity(0.6)).lineLimit(1)
-                }
-                Spacer(minLength: 4)
-                Image(systemName: "play.fill")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(.black)
-                    .frame(width: 40, height: 40)
-                    .background(Circle().fill(.white))
-            }
-            .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(Tone.surface)
-            )
-        }
-        .buttonStyle(.pressable(scale: 0.98))
     }
 
     /// Petit raccourci de l'accueil (reconnaître un titre, mode voiture).

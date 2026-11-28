@@ -14,7 +14,7 @@ import MediaToolbox
 ///   instru, chacune avec son propre traitement. Celui de la voix applique
 ///   son volume (`vocalGain`) ; les deux passent par l'égaliseur (un filtre
 ///   linéaire : égaliser chaque piste revient à égaliser leur somme), et le
-///   visualiseur additionne l'énergie des deux (voix et instru ne sont
+///   « Fond qui bat au son » additionne l'énergie des deux (voix et instru ne sont
 ///   presque pas corrélées : leurs énergies s'ajoutent).
 /// - **Égaliseur** : 5 bandes (60 Hz, 250 Hz, 1 kHz, 4 kHz, 12 kHz), filtres
 ///   « biquad » classiques, avec une marge automatique contre la saturation.
@@ -25,7 +25,7 @@ enum AudioEffects {
     /// Volume de la piste voix en karaoké séparé (0 : instru seule, 1 :
     /// titre normal). Suivi en douceur par le fil audio (voir `process`).
     static var vocalGain: Float = 0
-    /// Les pistes séparées sont en lecture : le visualiseur ajoute
+    /// Les pistes séparées sont en lecture : la mesure des niveaux ajoute
     /// l'énergie de la voix (mesurée par son propre traitement).
     static var stemsActive = false
 
@@ -43,16 +43,10 @@ enum AudioEffects {
 
     static var isEQActive: Bool { eqGains.contains { abs($0) > 0.05 } }
 
-    // MARK: Visualiseur
+    // MARK: Niveaux du son
 
-    /// Visualiseur du lecteur : le fil audio mesure alors le niveau de
-    /// `levelBands` bandes de fréquence (des basses aux aigus), lu par
-    /// `VisualizerBars` à chaque image.
-    static var visualizerOn = UserDefaults.standard.bool(forKey: "encre.visualizer") {
-        didSet { UserDefaults.standard.set(visualizerOn, forKey: "encre.visualizer") }
-    }
     /// « Fond qui bat au son » : le fil audio mesure le son pour le fond
-    /// du lecteur, même sans visualiseur.
+    /// du lecteur, par bandes de fréquence (des basses aux aigus).
     static var reactiveBackground = UserDefaults.standard.bool(forKey: "encre.reactiveBackground") {
         didSet { UserDefaults.standard.set(reactiveBackground, forKey: "encre.reactiveBackground") }
     }
@@ -222,7 +216,7 @@ private final class TapState {
     var memory: [Float] = Array(repeating: 0, count: 5 * 4 * 2)
     var eqOn = false
     var preamp: Float = 1
-    // Visualiseur : passe-bas en cascade sur le mono.
+    // Niveaux du son : passe-bas en cascade sur le mono.
     var splits: [Float] = Array(repeating: 0, count: AudioEffects.levelSplits.count)
 
     func refreshEQ() {
@@ -283,7 +277,7 @@ private let tapProcess: MTAudioProcessingTapProcessCallback = { tap, frames, _, 
     // est déjà à part.
     let target: Float = state.role == .normal ? AudioEffects.singAmount : 0
     let singing = target > 0 || state.applied > 0
-    let measuring = AudioEffects.visualizerOn
+    let measuring = AudioEffects.reactiveBackground
     // Enchaînement AutoMix en cours sur ce titre : filtres et écho.
     let mixing = state.control?.isActive == true
     guard isVocals || singing || state.eqOn || measuring || mixing else { return }
