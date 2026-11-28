@@ -1973,6 +1973,20 @@ final class PlayerManager: ObservableObject {
     /// Position où reprendre le titre restauré, au premier appui sur lecture.
     private var restoredPosition: Double?
 
+    /// Déconnexion : la musique s'arrête, et la file n'est pas reproposée au compte suivant.
+    func forgetAccount() {
+        teardown()
+        endStation()
+        resetQueueState(name: nil)
+        current = nil
+        context = []
+        restoredPosition = nil
+        isPlaying = false
+        isLoading = false
+        UserDefaults.standard.removeObject(forKey: Self.sessionKey)
+        restoreNowPlayingInfo()
+    }
+
     /// Mémorise le titre, la position et la file (toutes les 10 s au plus).
     func saveSession(force: Bool = false) {
         guard let current, force || Date().timeIntervalSince(lastSessionSave) > 10 else { return }
