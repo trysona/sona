@@ -477,6 +477,13 @@ function signOutLocal(silent) {
   Sona.auth.signOut().catch(() => {});
   audio.pause();
   partyLeave(true);
+  // Sans rechargement (appli installée, Windows), la file, le lecteur et le lien public du compte qui part
+  // restaient affichés au suivant.
+  Object.assign(state, { queue: [], index: -1, name: "", station: null, lyrics: null });
+  Object.assign(state.connect, { devices: [], session: null, active: null, control: null });
+  store.set("sona.control", null);
+  audio.removeAttribute("src");
+  desk.publicUrl = null;
   if (!silent) toast("Déconnecté");
   landing();
 }
@@ -5309,7 +5316,7 @@ function saveResume(force = false) {
   resumeSavedAt = Date.now();
   const start = Math.max(0, state.index - 20);
   store.set("sona.resume", JSON.stringify({
-    queue: state.queue.slice(start, start + 150).map(cleanTrack), index: state.index - start,
+    queue: state.queue.slice(start, start + 150).map(cleanTrack), index: state.index - start, who: account?.username || null,
     position: Math.floor(audio.currentTime || 0), name: state.name || "", at: Date.now(),
   }));
 }
@@ -5323,6 +5330,7 @@ function restoreResume() {
   let saved = null;
   try { saved = JSON.parse(store.get("sona.resume")); } catch {}
   if (!saved?.queue?.length || Date.now() - (saved.at || 0) > 14 * 86400e3) return;
+  if (saved.who && saved.who !== account?.username) return; // la file d'un autre compte de cet appareil
   const t = saved.queue[saved.index];
   if (!t) return;
   state.queue = saved.queue;
@@ -5592,6 +5600,8 @@ function showLoginRequests(list) {
 }
 
 function startConnect() {
+  // Une seule boucle par page : se reconnecter en ajoutait une à chaque fois (requêtes et écouteurs en double).
+  if (startConnect.now) return;
   document.addEventListener("pointerdown", () => { state.connect.pointerDown = true; });
   document.addEventListener("pointerup", () => { state.connect.pointerDown = false; });
   // Connexion qui attend les nouvelles : le serveur répond dès qu'une
@@ -5600,6 +5610,7 @@ function startConnect() {
     // Même onglet en arrière-plan : une commande de l'iPhone doit arriver
     // tout de suite (une seule requête ouverte, rien de coûteux).
     for (;;) {
+      if (!account) { await new Promise((r) => setTimeout(r, 3000)); continue; } // déconnecté : on attend
       const ok = await connectSync(25);
       if (ok === false) await new Promise((r) => setTimeout(r, 3000));
     }
