@@ -2943,6 +2943,15 @@ function refreshCurrentMarks() {
   });
 }
 
+/** Aléatoire / répéter : sur l'appareil piloté quand le lecteur sert de télécommande. */
+function toggleOption(option) {
+  const remote = remoteDevice();
+  if (remote) return sendCommand(remote.id, option);
+  state[option] = !state[option];
+  renderTopbar();
+  startConnect.now?.();
+}
+
 // ── Lecteur du haut ───────────────────────────────────────────────────────
 
 function renderTopbar() {
@@ -2957,11 +2966,11 @@ function renderTopbar() {
   const volumeShown = remote ? (state.connect.pendingVolume ?? remote.volume ?? 1) : vol.level;
   bar.innerHTML = `
     <div class="transport">
-      <button class="tbtn small ${state.shuffle ? "on" : ""}" data-act="shuffle" title="Aléatoire">${icons.shuffle}</button>
+      <button class="tbtn small ${(remote ? remote.shuffle : state.shuffle) ? "on" : ""}" data-act="shuffle" title="Aléatoire">${icons.shuffle}</button>
       <button class="tbtn" data-act="prev" title="Précédent">${icons.prev}</button>
       <button class="tbtn big" data-act="toggle" title="Lecture/Pause (espace)">${playingIcon}</button>
       <button class="tbtn" data-act="next" title="Suivant">${icons.next}</button>
-      <button class="tbtn small ${state.repeat ? "on" : ""}" data-act="repeat" title="Répéter le titre">${icons.repeat}</button>
+      <button class="tbtn small ${(remote ? remote.repeat && remote.repeat !== "off" : state.repeat) ? "on" : ""}" data-act="repeat" title="Répéter le titre">${icons.repeat}</button>
     </div>
     ${grip()}
     ${t ? `<div class="lcd ${remote ? "remote" : ""}"><img class="art" data-act="${remote ? "devices" : "open"}" src="${esc(big(t.cover_url, 120))}" alt="">
@@ -2992,8 +3001,7 @@ function renderTopbar() {
     if (act === "toggle") toggle();
     if (act === "prev") prev();
     if (act === "next") next();
-    if (act === "shuffle") { state.shuffle = !state.shuffle; renderTopbar(); startConnect.now?.(); }
-    if (act === "repeat") { state.repeat = !state.repeat; renderTopbar(); startConnect.now?.(); }
+    if (act === "shuffle" || act === "repeat") toggleOption(act);
     if (act === "like" && t) toggleLike(t);
     if (act === "open") openNowPlaying(state.npTab);
     if (act === "lyrics") return drawerMode() ? toggleDrawer("lyrics") : openNowPlaying("lyrics", true);
@@ -5605,6 +5613,20 @@ async function sendCommand(target, action, extra = {}) {
   // Réponse immédiate à l'écran, confirmée par le serveur juste après.
   const session = state.connect.session;
   const dev = state.connect.devices.find((d) => d.id === target);
+  if (action === "seek" && session?.device_id === target) {
+    session.position = extra.position;
+    state.connect.receivedAt = Date.now();
+    updateProgress();
+  }
+  if (dev && (action === "shuffle" || action === "repeat")) {
+    // La page « Appareils » a déjà basculé sa propre copie avant d'appeler.
+    if (!extra.shown) {
+      if (action === "shuffle") dev.shuffle = !dev.shuffle;
+      else dev.repeat = dev.repeat && dev.repeat !== "off" ? "off" : "one";
+    }
+    renderTopbar();
+  }
+  delete extra.shown;
   if ((action === "toggle" || action === "play" || action === "pause") && (dev || session?.device_id === target)) {
     const now = deviceNow(dev || { id: target });
     const paused = action === "toggle" ? !now.paused : action === "pause";
@@ -5619,7 +5641,8 @@ async function sendCommand(target, action, extra = {}) {
   try {
     await api("/connect/command", { method: "POST", body: JSON.stringify({ device_id: deviceId, target, action, ...extra }) });
     setTimeout(() => startConnect.now?.(), 700);
-  } catch (e) { toast(e.message); }
+    return true;
+  } catch (e) { toast(e.message); return false; }
 }
 
 /** « Écouter sur… » : la musique part sur cet appareil, à la même seconde. */
@@ -5630,7 +5653,8 @@ async function listenOn(device) {
     return;
   }
   await connectSync(); // position à jour avant l'envoi
-  await sendCommand(device.id, "transfer");
+  // Refusé (appareil parti, rien à envoyer) : la musique continue ici, le message d'erreur est déjà affiché.
+  if (!(await sendCommand(device.id, "transfer"))) return;
   audio.pause();
   toast(`Musique envoyée sur ${device.name}`);
   closeDevices();
@@ -5947,7 +5971,7 @@ function bindDevicesPage() {
       if (opt === "like") target.liked = !target.liked;
       if (opt === "repeat") target.repeat = target.repeat === "off" ? "one" : "off";
       renderDevicesPage();
-      return sendCommand(target.id, opt);
+      return sendCommand(target.id, opt, { shown: true });
     }
     if (el("[data-dev-index]") && target) {
       haptic();
@@ -5970,7 +5994,7 @@ function bindDevicesPage() {
     }
     if (el("[data-dev-send]") && target) {
       await connectSync();
-      await sendCommand(target.id, "transfer");
+      if (!(await sendCommand(target.id, "transfer"))) return;
       audio.pause();
       return toast(`Musique envoyée sur ${target.name}`);
     }
@@ -7915,8 +7939,8 @@ async function desktopCommand(c) {
       result = { preset: preset.id, label: preset.label, level: preset.level };
       break;
     }
-    case "shuffle": state.shuffle = !state.shuffle; renderTopbar(); break;
-    case "repeat": state.repeat = !state.repeat; renderTopbar(); break;
+    case "shuffle":
+    case "repeat": toggleOption(c.action); break;
     case "playIndex": if (!remote && state.queue[c.index]) playAt(c.index); break;
     case "removeIndex":
       if (!remote && c.index > state.index && c.index < state.queue.length) {

@@ -100,6 +100,8 @@ async def send_command(payload: CommandIn, deps: ApiDeps = Depends(require_token
         sent = connect.command(deps.user_id, payload.device_id, payload.target, payload.action, extra)
     except ValueError:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Commande inconnue.")
+    except connect.NothingToPlay:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Lance d'abord un titre : il n'y a rien à envoyer.")
     if not sent:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Cet appareil n'est plus connecté.")
 

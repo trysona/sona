@@ -51,6 +51,8 @@ class Device:
     queue: list[dict] = field(default_factory=list)
     index: int = 0
     queue_name: str = ""
+    # Requêtes d'attente ouvertes : tant qu'il y en a, l'appareil écoute, même sans nouvelle depuis 25 s.
+    waiting: int = 0
 
 
 @dataclass
@@ -105,7 +107,7 @@ def _account(user_id: int) -> Account:
 
 
 def _online(device: Device, now: float) -> bool:
-    return now - device.last_seen <= ONLINE_SECONDS
+    return device.waiting > 0 or now - device.last_seen <= ONLINE_SECONDS
 
 
 def _position(session: dict, now: float) -> float:
@@ -187,14 +189,16 @@ async def sync_wait(user_id: int, device_id: str, name: str, kind: str, state: d
         return result
     account = _account(user_id)
     event = account.waiter()
+    device = account.devices[device_id]
+    device.waiting += 1
     try:
         await asyncio.wait_for(event.wait(), timeout=wait)
     except asyncio.TimeoutError:
         pass
-    account = _account(user_id)
-    device = account.devices.get(device_id)
-    if device is not None:
+    finally:
+        device.waiting -= 1
         device.last_seen = _now()
+    account = _account(user_id)
     return snapshot(user_id, device_id) | {"commands": account.commands.pop(device_id, [])}
 
 
@@ -264,6 +268,10 @@ def _push(account: Account, device_id: str, command: dict) -> None:
     del queue[:-MAX_COMMANDS]
 
 
+class NothingToPlay(Exception):
+    """« Écouter sur… » alors que rien n'a encore été lancé sur le compte."""
+
+
 def command(user_id: int, from_device: str, target: str, action: str, payload: dict | None = None) -> bool:
     """Commande envoyée à un autre appareil ; relevée à son prochain `sync`.
     `transfer` : « écoute sur cet appareil » — la cible reprend la session
@@ -280,7 +288,7 @@ def command(user_id: int, from_device: str, target: str, action: str, payload: d
     if action == "transfer":
         session = account.session
         if not session:
-            return False
+            raise NothingToPlay
         body.update({
             "queue": session["queue"], "index": session["index"], "name": session["name"],
             "position": round(_position(session, now), 2),

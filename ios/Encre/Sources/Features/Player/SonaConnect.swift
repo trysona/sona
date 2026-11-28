@@ -408,7 +408,15 @@ final class ConnectManager: ObservableObject {
             )
             receivedAt = Date()
         }
-        try? await APIClient.shared.connectCommand(from: deviceId, to: device.id, action: "transfer")
+        do {
+            try await APIClient.shared.connectCommand(from: deviceId, to: device.id, action: "transfer")
+        } catch {
+            // Refusé : la musique continue ici, et on le dit.
+            session = nil
+            show(error.localizedDescription)
+            syncSoon()
+            return
+        }
         remoteStartUntil = Date().addingTimeInterval(3)
         PlayerManager.shared.pause()
         RemoteFlag.shared.update(remoteTarget != nil)
@@ -450,9 +458,13 @@ final class ConnectManager: ObservableObject {
         }
         let command = action
         Task {
-            try? await APIClient.shared.connectCommand(
-                from: deviceId, to: target.id, action: command, position: position, volume: volume, index: index
-            )
+            do {
+                try await APIClient.shared.connectCommand(
+                    from: deviceId, to: target.id, action: command, position: position, volume: volume, index: index
+                )
+            } catch {
+                show("\(target.name) ne répond pas")
+            }
             syncSoon()
         }
     }
