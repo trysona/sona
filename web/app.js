@@ -6292,10 +6292,12 @@ function trackMenu(t, ctx = null, index = -1) {
 
 /** Lance des titres sur un autre appareil (Relais) et le pilote. */
 async function playOnDevice(d, tracks, index = 0, name = "") {
-  const queue = tracks.slice(0, 150).map(cleanTrack);
+  // 150 titres au plus : une fenêtre autour du titre choisi (au-delà du 150ᵉ, un autre se lançait).
+  const first = Math.max(0, Math.min(index - 20, tracks.length - 150));
+  const queue = tracks.slice(first, first + 150).map(cleanTrack);
   try {
     await api("/connect/command", { method: "POST", body: JSON.stringify({
-      device_id: deviceId, target: d.id, action: "play_tracks", queue, index: Math.min(index, queue.length - 1), name: name || null,
+      device_id: deviceId, target: d.id, action: "play_tracks", queue, index: Math.min(index - first, queue.length - 1), name: name || null,
     }) });
     if (audio.src && !audio.paused) audio.pause();
     setControl(d.id);
