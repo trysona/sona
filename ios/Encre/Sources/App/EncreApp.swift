@@ -42,13 +42,13 @@ struct EncreApp: App {
             .task {
                 // Au moins le temps de l'animation, puis dès que le compte est vérifié (6 s au plus).
                 let started = Date()
-                try? await Task.sleep(for: .milliseconds(2300))
+                try? await Task.sleep(for: .seconds(LaunchSplashView.introSeconds))
                 while launchAuth.state == .checking, Date().timeIntervalSince(started) < 6 {
                     try? await Task.sleep(for: .milliseconds(150))
                 }
-                // Sortie en deux temps : l'animation de fondu (0,9 s), puis on retire la vue.
+                // Sortie en deux temps : le zoom (0,45 s), puis on retire la vue.
                 splashLeaving = true
-                try? await Task.sleep(for: .milliseconds(1000))
+                try? await Task.sleep(for: .milliseconds(500))
                 showsSplash = false
             }
         }
