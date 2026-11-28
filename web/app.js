@@ -2863,11 +2863,16 @@ function reportNowPlaying(t, position = 0) {
   }).catch(() => {});
 }
 
+/** `auto` : fin naturelle (`true`, « répéter » s'applique) ou titre illisible (`"error"`, on passe vraiment). */
 async function next(auto = false) {
   // Invité d'une écoute ensemble : c'est l'hôte qui enchaîne.
   if (partyGuest()) return auto ? undefined : partyIntercept("next");
   if (!auto && remoteDevice()) return sendCommand(remoteDevice().id, "next");
-  if (state.repeat && auto) { audio.currentTime = 0; audio.play(); return; }
+  if (state.repeat && auto === true) {
+    // Chaque nouvelle écoute en boucle compte (statistiques, Last.fm).
+    Object.assign(state, { listened: 0, lastTick: 0, scrobbled: false, startedAt: new Date().toISOString() });
+    audio.currentTime = 0; audio.play(); return;
+  }
   if (state.index + 1 >= state.queue.length) await extendQueue();
   if (state.index + 1 < state.queue.length) playAt(state.index + 1);
   else if (auto) { audio.pause(); renderTopbar(); }
@@ -2883,7 +2888,7 @@ function prev() {
 /** Pause assez longue pour que la connexion au flux soit morte (le serveur a pu
     renouveler l'adresse du titre entre-temps). */
 const STALE_PAUSE_MS = 3 * 60 * 1000;
-const audioRetry = { count: 0, pausedAt: 0 };
+const audioRetry = { count: 0, pausedAt: 0, failed: 0 };
 
 /** Recharge le titre en cours au même endroit (nouvelle connexion au serveur). */
 function reloadAudio(position, play) {
@@ -2903,7 +2908,7 @@ function resumePlayback() {
   audio.play().catch(() => {});
 }
 audio.addEventListener("pause", () => { audioRetry.pausedAt = Date.now(); });
-audio.addEventListener("playing", () => { audioRetry.count = 0; audioRetry.pausedAt = 0; });
+audio.addEventListener("playing", () => { audioRetry.count = 0; audioRetry.pausedAt = 0; audioRetry.failed = 0; });
 
 function toggle() {
   if (partyIntercept("toggle")) return;
@@ -7769,8 +7774,10 @@ audio.addEventListener("error", async () => {
   }
   const reason = await explainPlaybackError(audio.src);
   if (partyGuest()) return toast(`${reason} — l'hôte continue`);
+  // Trois titres d'affilée illisibles : le problème n'est pas le titre, on s'arrête au lieu de vider la file.
+  if (++audioRetry.failed >= 3) { audioRetry.failed = 0; return toast(`${reason} — lecture arrêtée`); }
   toast(`${reason} — passage au suivant`);
-  setTimeout(() => next(true), 1200);
+  setTimeout(() => next("error"), 1200);
 });
 audio.addEventListener("timeupdate", () => {
   updateProgress();

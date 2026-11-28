@@ -202,6 +202,15 @@ await page.evaluate(() => { audio.pause(); playList([{ source: "deezer", source_
 await page.waitForFunction(() => audio.src.startsWith("blob:"), null, { timeout: 5000 }).then(() => out("lecture depuis blob: ok"), () => out("lecture depuis blob: ÉCHEC src=" + "?"));
 await page.goto(`http://localhost:${port}/web/#/library/downloads`);
 await page.waitForSelector(".tracks .tr", { timeout: 5000 }).then(() => out("page Téléchargés: ok"), () => out("page Téléchargés: vide"));
+// 11. serveur en panne : la lecture s'arrête après trois titres illisibles au lieu de vider la file
+await page.route("**/stream/**", (route) => route.fulfill({ status: 502, json: { detail: "panne" } }));
+await page.evaluate(() => { audio.pause(); playList(Array.from({ length: 8 }, (_, i) => ({ source: "deezer", source_id: `p${i}`, title: `Panne ${i}`, artist: "Favé", duration_seconds: 3 })), 0, ""); });
+await page.waitForTimeout(16000);
+out(`panne: s'arrête au 3e titre: ${await page.evaluate(() => state.index === 2)}`);
+errors.splice(0, errors.length, ...errors.filter((e) => !/502/.test(e)));
+// 12. déconnexion : la file du compte qui part ne reste pas
+await page.evaluate(() => signOutLocal(true));
+out(`déconnexion: file et lecteur vidés: ${await page.evaluate(() => state.queue.length === 0 && !audio.getAttribute("src"))}`);
 out(errors.length ? `ERREURS:\n${errors.join("\n")}` : "aucune erreur JS");
 process.exitCode = errors.length || lines.some((l) => /: (false|ÉCHEC|vide|absents?)/.test(l)) ? 1 : 0;
 await browser.close(); closeServer();
