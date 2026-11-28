@@ -34,7 +34,7 @@ from app.api.schemas import (
 from app.api.state import ApiDeps
 from app.db.repository import PLAYLIST_VISIBILITIES, Playlist
 from app.providers.base import TrackInfo
-from app.services import playlist_import
+from app.services import playlist_import, social
 from app.services.resolver import ResolutionError, source_from_url
 
 logger = logging.getLogger(__name__)
@@ -53,14 +53,14 @@ async def _owned(deps: ApiDeps, playlist_id: int) -> Playlist:
 
 async def _accessible(deps: ApiDeps, playlist_id: int, *, edit: bool = False) -> Playlist:
     """Playlist lisible (à soi, ou partagée par un ami), ou modifiable (à
-    soi, ou « à plusieurs ») quand `edit`."""
+    soi, ou « à plusieurs » d'un ami) quand `edit`."""
     playlist = await deps.repo.playlist_by_id(playlist_id)
     if playlist is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Playlist introuvable.")
     if playlist.user_id == deps.user_id:
         return playlist
     allowed = ("collaborative",) if edit else ("friends", "collaborative")
-    if playlist.visibility not in allowed:
+    if playlist.visibility not in allowed or playlist.user_id not in await social.playlist_owners(deps):
         # Même réponse qu'une playlist inexistante : rien ne fuit.
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Playlist introuvable.")
     return playlist
@@ -102,6 +102,9 @@ async def _detail(deps: ApiDeps, playlist_id: int) -> PlaylistDetailOut:
 @router.get("", response_model=list[PlaylistOut])
 async def list_playlists(deps: ApiDeps = Depends(require_token)) -> list[PlaylistOut]:
     playlists = await deps.repo.playlist_list(deps.user_id, include_collaborative=True)
+    if any(p.user_id != deps.user_id for p in playlists):  # « à plusieurs » : entre amis seulement
+        friends = await social.playlist_owners(deps)
+        playlists = [p for p in playlists if p.user_id == deps.user_id or p.user_id in friends]
     return [await _out(deps, p) for p in playlists]
 
 

@@ -18,7 +18,7 @@ import secrets
 import time
 from datetime import datetime, timedelta, timezone
 
-from app.services import lookup
+from app.services import lookup, social
 from app.db.repository import ShareLink
 from app.providers.base import TrackInfo
 from app.services.preview import complete_preview
@@ -67,7 +67,9 @@ async def describe(deps, user_id: int, kind: str, source: str, ref: str) -> tupl
 
 async def _playlist(deps, user_id: int, ref: str):
     playlist = await deps.repo.playlist_by_id(int(ref)) if ref.isdigit() else None
-    if playlist is None or (playlist.user_id != user_id and playlist.visibility not in ("friends", "collaborative")):
+    if playlist is None or (playlist.user_id != user_id and not (
+        playlist.visibility in ("friends", "collaborative") and playlist.user_id in await social.playlist_owners(deps)
+    )):
         raise ShareError("Playlist introuvable.")
     return playlist
 
@@ -119,7 +121,10 @@ async def tracks(deps, link: ShareLink) -> list[TrackInfo]:
         elif link.kind == "album":
             found = list((await lookup.get_album(deps, link.source, link.ref)).tracks)
         else:
-            found = [e.track for e in await deps.repo.playlist_tracks(int(link.ref))]
+            playlist = await deps.repo.playlist_by_id(int(link.ref))
+            # Repassée en privé par son propriétaire : le lien créé par quelqu'un d'autre ne la montre plus.
+            hidden = playlist is None or (playlist.user_id != link.user_id and playlist.visibility == "private")
+            found = [] if hidden else [e.track for e in await deps.repo.playlist_tracks(playlist.id)]
     except (lookup.UnknownSourceError, ValueError, *lookup.ProviderErrors) as exc:
         logger.info("Contenu du lien %s indisponible : %s", link.token[:6], exc)
         found = []

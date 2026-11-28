@@ -38,3 +38,8 @@ async def circle(deps: ApiDeps, permission: str = "profile") -> list[tuple[Accou
 
 async def friend_accounts(deps: ApiDeps, permission: str = "profile") -> list[Account]:
     return [a for a, _ in await circle(deps, permission)]
+
+
+async def playlist_owners(deps: ApiDeps) -> set[int]:
+    """Comptes (user_id) dont les playlists « amis » et « à plusieurs » sont ouvertes à l'appelant."""
+    return {a.user_id for a in await friend_accounts(deps, "playlists")}
