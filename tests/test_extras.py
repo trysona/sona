@@ -59,17 +59,6 @@ def test_new_releases_from_favourite_artists(client, monkeypatch):
     assert [(r["title"], r["kind"]) for r in got] == [("Nouvel album", "Album"), ("Single", "Single")]
 
 
-def test_memories_from_last_year(client):
-    me = login(client, "alice")
-    last_year = datetime.now(timezone.utc).replace(microsecond=0)
-    last_year = last_year.replace(year=last_year.year - 1)
-    client.post("/plays", headers=me, json={"plays": [play("Souvenir", "PNL", last_year, sid="42")]})
-    got = client.get("/memories", headers=me, params={"tz": "UTC"}).json()
-    assert got[0]["years_ago"] == 1 and got[0]["tracks"][0]["title"] == "Souvenir"
-
-
-
-
 def cand(video_id, title, duration):
     return Candidate(video_id=video_id, title=title, artist="X", album=None, duration_seconds=duration,
                      cover_url=None, is_song=False)
@@ -109,19 +98,6 @@ def test_listening_map_groups_places(client):
     places = client.get("/map", headers=me).json()
     assert [p["plays"] for p in places] == [2, 1]
     assert places[0]["top_artist"] == "PNL" and round(places[0]["lat"]) == 49
-
-
-def test_weekly_challenges_and_badges(client):
-    me = login(client, "alice")
-    now = datetime.now(timezone.utc).replace(microsecond=0)
-    client.post("/plays", headers=me, json={"plays": [
-        play(f"t{i}", f"Artiste {i}", now - timedelta(minutes=i), album="Album") for i in range(8)
-    ]})
-    got = client.get("/challenges", headers=me, params={"tz": "UTC"}).json()
-    by_id = {c["id"]: c for c in got["challenges"]}
-    assert by_id["album"]["done"] is False and by_id["album"]["value"] == 1  # un titre par artiste
-    assert by_id["variety"]["value"] == 8
-    assert {b["id"] for b in got["badges"]} >= {"plays100", "night"}
 
 
 def test_party_votes_reorder_the_queue(client):

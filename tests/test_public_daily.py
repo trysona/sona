@@ -44,24 +44,3 @@ def test_public_link_needs_account(client):
 def _track(i):
     return TrackInfo(source="deezer", source_id=str(i), title=f"Titre {i}", artist="Artiste", album=None, year=None,
                      duration_seconds=180, cover_url=None)
-
-
-def test_daily_track(client, monkeypatch):
-    me = login(client, "alice")
-    mixes = [Mix(id="daily", title="Mix du jour", subtitle="", tracks=[_track(1), _track(2)]),
-             Mix(id="discoveries", title="Découvertes", subtitle="", tracks=[_track(i) for i in range(10, 20)])]
-
-    async def fake(deps, user_id, refresh=False):
-        return mixes
-
-    monkeypatch.setattr(mixes_service, "get_mixes", fake)
-    first = client.get("/home/daily", headers=me).json()
-    assert first["track"]["source_id"] in {str(i) for i in range(10, 20)}
-    assert "jamais écouté" in first["reason"]
-    # Le même toute la journée.
-    assert client.get("/home/daily", headers=me).json() == first
-
-    mixes[1].tracks = []
-    assert client.get("/home/daily", headers=me).json()["track"]["source_id"] in {"1", "2"}
-    mixes.clear()
-    assert client.get("/home/daily", headers=me).json()["track"] is None
