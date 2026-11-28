@@ -1132,7 +1132,7 @@ async function viewHome() {
   // Accueil « Classique » (v2.5) : des rangées, rien à apprendre.
   return page(`<header class="home-head"><h1 class="page-title">${greeting()}${name ? `, ${esc(name)}` : ""}</h1>
       <div class="home-actions"><a class="btn ghost" href="#/party">${icons.headphones} Écoute ensemble</a>
-        ${navigator.mediaDevices?.getUserMedia && window.MediaRecorder ? `<button class="btn ghost" data-recognize>${icons.wave} Reconnaître un titre</button>` : ""}</div></header>
+        ${canRecognize() ? `<button class="btn ghost" data-recognize>${icons.wave} Reconnaître un titre</button>` : ""}</div></header>
     <div id="install">${installBanner()}</div>
     <div id="resume">${resumeCard()}</div>
     ${party.state ? `<a class="live-pill" href="#/party">${bars()} Écoute ensemble en cours · ${esc(party.state.code)}</a>` : ""}
@@ -5065,6 +5065,11 @@ function micChanged({ inUse, apps }) {
 // ── Reconnaître un titre ─────────────────────────────────────────────────
 // Le micro écoute 8 s, le serveur identifie l'extrait (service de Shazam)
 // et le retrouve dans Sona ; il est rangé dans la playlist « Entendu dehors ».
+
+/** Téléphones : pas sur Windows (ni l'app, ni le navigateur). */
+function canRecognize() {
+  return !/Windows/.test(navigator.userAgent) && !!navigator.mediaDevices?.getUserMedia && !!window.MediaRecorder;
+}
 
 async function recognizeSheet() {
   let stream;
